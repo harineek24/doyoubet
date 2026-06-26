@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+:root {
+  --void: #0b0b0f;
+  --void-soft: #121218;
+  --charcoal: #1a1a22;
+  --charcoal-soft: #21212b;
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --emerald: #34d399;
+  --emerald-glow: rgba(52, 211, 153, 0.45);
+  --purple: #a855f7;
+  --purple-glow: rgba(168, 85, 247, 0.45);
+  --background: var(--void);
+  --foreground: #e8e8ef;
+}
+
+@theme inline {
+  --color-void: var(--void);
+  --color-void-soft: var(--void-soft);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-soft: var(--charcoal-soft);
+  --color-emerald: var(--emerald);
+  --color-purple: var(--purple);
+  --color-border-glass: var(--border-glass);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--border-glass);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.glass {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.015)
+  );
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(16px);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 24px var(--emerald-glow);
+}
+
+.glow-purple {
+  box-shadow: 0 0 24px var(--purple-glow);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--charcoal-soft);
+  border-radius: 8px;
+}
+
+.markdown-body :where(h1, h2, h3) {
+  font-weight: 600;
+  margin: 0.75em 0 0.35em;
+}
+
+.markdown-body p {
+  margin: 0.5em 0;
+}
+
+.markdown-body code {
+  background: var(--charcoal);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.85em;
+}
+
+.markdown-body pre {
+  background: var(--charcoal);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.4em;
+}
