@@ -13,6 +13,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { readKey, writeKey } from "@/lib/store/localStore";
 import { DEMO_USER_ID } from "@/lib/store/seed";
+import { fetchGithubUser } from "@/lib/github";
+import { upsertGithubConnection } from "@/lib/githubConnection";
 
 export interface AuthUser {
   id: string;
@@ -25,6 +27,7 @@ interface AuthContextValue {
   loading: boolean;
   isDemoMode: boolean;
   signInWithGoogle: () => Promise<void>;
+  connectGithub: () => Promise<void>;
   signInDemo: () => void;
   signOut: () => Promise<void>;
 }
@@ -72,6 +75,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           : null
       );
+
+      const providerToken = (session as Session & { provider_token?: string })?.provider_token;
+      if (sessionUser && providerToken) {
+        const isGithubIdentity = sessionUser.identities?.some((i) => i.provider === "github");
+        if (isGithubIdentity) {
+          fetchGithubUser(providerToken)
+            .then((githubUser) =>
+              upsertGithubConnection(supabase, {
+                userId: sessionUser.id,
+                accessToken: providerToken,
+                githubUsername: githubUser.login,
+              })
+            )
+            .catch(() => {});
+        }
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -82,6 +101,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/onboarding` },
+    });
+  }, [supabase]);
+
+  const connectGithub = useCallback(async () => {
+    if (!supabase) return;
+    await supabase.auth.linkIdentity({
+      provider: "github",
+      options: {
+        scopes: "repo",
+        redirectTo: `${window.location.origin}/dashboard/study`,
+      },
     });
   }, [supabase]);
 
@@ -111,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         isDemoMode: !isSupabaseConfigured,
         signInWithGoogle,
+        connectGithub,
         signInDemo,
         signOut,
       }}

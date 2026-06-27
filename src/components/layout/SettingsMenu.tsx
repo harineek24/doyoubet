@@ -1,22 +1,31 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Compass, Dice5, LogOut, Settings } from "lucide-react";
-import { useState } from "react";
+import { Compass, Dice5, GitBranch, LogOut, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPreferences, savePreferences } from "@/lib/repo";
-import type { LearningStyle } from "@/types/schema";
+import { getGithubConnection } from "@/lib/githubConnection";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { GithubConnection, LearningStyle } from "@/types/schema";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 export function SettingsMenu() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, connectGithub } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const prefs = user ? getPreferences(user.id) : null;
   const [learningStyle, setLearningStyle] = useState<LearningStyle>(
     prefs?.learningStyle ?? "spontaneous"
   );
+  const [githubConnection, setGithubConnection] = useState<GithubConnection | null>(null);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !user) return;
+    getGithubConnection(supabase, user.id).then(setGithubConnection);
+  }, [user]);
 
   function selectStyle(style: LearningStyle) {
     if (!user || !prefs) return;
@@ -72,6 +81,26 @@ export function SettingsMenu() {
                 <Compass className="h-4 w-4" />
                 Structured
               </button>
+            </div>
+
+            <div className="mt-3 border-t border-border-glass pt-3">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-foreground/40">
+                GitHub
+              </p>
+              {githubConnection ? (
+                <p className="flex items-center gap-2 text-xs text-foreground/70">
+                  <GitBranch className="h-3.5 w-3.5 text-emerald" />
+                  Connected as @{githubConnection.githubUsername}
+                </p>
+              ) : (
+                <button
+                  onClick={connectGithub}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs text-foreground/60 transition hover:bg-charcoal hover:text-foreground"
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Connect GitHub
+                </button>
+              )}
             </div>
 
             <button

@@ -89,3 +89,17 @@ export interface WorkbenchSubmission {
   pushedToGithub: boolean;
   createdAt: string;
 }
+
+export interface GithubConnection {
+  userId: string;
+  accessToken: string;
+  githubUsername: string;
+  repoFullName: string | null;
+  connectedAt: string;
+}
+
+export interface RunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
