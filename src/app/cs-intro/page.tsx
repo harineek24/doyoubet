@@ -400,33 +400,6 @@ class CinematicEngine {
 
 const SERIF = 'var(--font-playfair), Georgia, "Book Antiqua", Palatino, serif';
 
-function LetterReveal({
-  text, show, delay = 0, style = {},
-}: {
-  text: string; show: boolean; delay?: number; style?: React.CSSProperties;
-}) {
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", ...style }}
-        >
-          {text.split("").map((ch, i) => (
-            <motion.span key={i}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1.5, delay: delay + i * 0.048, ease: [0.13, 1, 0.3, 1] }}
-              style={{ display: "inline-block", whiteSpace: "pre" }}
-            >
-              {ch}
-            </motion.span>
-          ))}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE
@@ -465,7 +438,7 @@ export default function CSIntroPage() {
     exitingRef.current = true;
     stopDroneRef.current?.();
     setExiting(true);
-    const t = setTimeout(() => router.replace("/dashboard/study"), 1600);
+    const t = setTimeout(() => router.replace("/cs-journey"), 1600);
     timersRef.current.push(t);
   }, [router]);
 
@@ -478,11 +451,11 @@ export default function CSIntroPage() {
       stopDroneRef.current = createAmbientDrone(actx);
     } catch { /* audio unavailable */ }
 
-    // Text reveals — no narration, driven purely by timer
-    const t0 = setTimeout(() => setLine0(true), 6000);
-    const t1 = setTimeout(() => setLine1(true), 8800);
-    const t2 = setTimeout(() => setLine2(true), 11600);
-    const t3 = setTimeout(() => setShowScroll(true), 14000);
+    // Text reveals — timing reduced for snappier feel
+    const t0 = setTimeout(() => setLine0(true), 1800);
+    const t1 = setTimeout(() => setLine1(true), 3000);
+    const t2 = setTimeout(() => setLine2(true), 4200);
+    const t3 = setTimeout(() => setShowScroll(true), 6000);
     // Safety-net auto-exit after 3 minutes of no interaction
     const t4 = setTimeout(() => doExit(), 180_000);
     timersRef.current.push(t0, t1, t2, t3, t4);
@@ -536,34 +509,42 @@ export default function CSIntroPage() {
                 background: "none", border: "none", cursor: "pointer" }}
               className="group"
             >
-              <div style={{ position: "relative", width: 80, height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {/* Outer pulse rings */}
+              <div style={{ position: "relative", width: 110, height: 110, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <motion.div
-                  animate={{ scale: [1, 1.65], opacity: [0.45, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                  style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px solid rgba(245,158,11,0.50)" }}
+                  animate={{ scale: [1, 1.7], opacity: [0.55, 0] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+                  style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1.5px solid rgba(245,158,11,0.75)" }}
                 />
                 <motion.div
-                  animate={{ scale: [1, 1.35], opacity: [0.5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.55 }}
-                  style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px solid rgba(245,158,11,0.35)" }}
+                  animate={{ scale: [1, 1.38], opacity: [0.65, 0] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
+                  style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1.5px solid rgba(245,158,11,0.55)" }}
                 />
+                {/* Core button */}
                 <div style={{
-                  width: 54, height: 54, borderRadius: "50%",
-                  background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.50)",
+                  width: 76, height: 76, borderRadius: "50%",
+                  background: "rgba(245,158,11,0.18)",
+                  border: "2px solid rgba(245,158,11,0.85)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   backdropFilter: "blur(12px)",
+                  boxShadow: "0 0 32px rgba(245,158,11,0.35), 0 0 8px rgba(245,158,11,0.25) inset",
                 }}>
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <path d="M6 4l8 5-8 5V4z" fill="rgba(251,191,36,0.9)" />
+                  <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                    <path d="M9 6l13 7-13 7V6z" fill="rgba(251,191,36,1)" />
                   </svg>
                 </div>
               </div>
+
               <span style={{
-                fontSize: "0.6rem", letterSpacing: "0.35em",
-                color: "rgba(254,243,199,0.28)", textTransform: "uppercase",
+                fontSize: "0.85rem",
+                letterSpacing: "0.32em",
+                color: "rgba(254,243,199,0.75)",
+                textTransform: "uppercase",
                 fontFamily: SERIF,
+                fontStyle: "italic",
               }}
-                className="group-hover:!text-[rgba(254,243,199,0.65)] transition-colors duration-300"
+                className="group-hover:!text-[rgba(254,243,199,1)] transition-colors duration-300"
               >
                 Click to Begin
               </span>
@@ -572,72 +553,99 @@ export default function CSIntroPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Title text — Playfair Display, warm editorial ── */}
-      <AnimatePresence>
-        {audioEnabled && !exiting && (
-          <motion.div key="text"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      {/* ── Title text — always in DOM, animate opacity+y to avoid layout shifts ── */}
+      <div
+        style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "0 2rem",
+        }}
+      >
+        <div style={{ textAlign: "center", fontFamily: SERIF, lineHeight: 1.15 }}>
+
+          {/* "Welcome" */}
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            animate={
+              line0 && audioEnabled && !exiting
+                ? { opacity: 1, y: 0 }
+                : { opacity: 0, y: 32 }
+            }
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: "absolute", inset: 0, pointerEvents: "none",
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              padding: "0 2rem",
+              fontSize: "clamp(3rem, 8vw, 6.5rem)",
+              fontStyle: "italic", fontWeight: 400,
+              color: "rgba(254,243,199,0.90)",
+              marginBottom: "0.1em",
+              letterSpacing: "-0.01em",
+              willChange: "transform, opacity",
             }}
           >
-            <div style={{ textAlign: "center", fontFamily: SERIF, lineHeight: 1.15 }}>
-
-              {/* "Welcome" — italic, largest, warm cream */}
-              <div style={{
-                fontSize: "clamp(3rem, 8vw, 6.5rem)",
-                fontStyle: "italic", fontWeight: 400,
-                color: "rgba(254,243,199,0.90)",
-                marginBottom: "0.1em",
-                letterSpacing: "-0.01em",
-              }}>
-                <LetterReveal text="Welcome" show={line0} delay={0} />
-              </div>
-
-              {/* "to the World" — lighter, smaller */}
-              <div style={{
-                fontSize: "clamp(1.4rem, 4vw, 3.2rem)",
-                fontStyle: "italic", fontWeight: 400,
-                color: "rgba(254,243,199,0.50)",
-                marginBottom: "0.25em",
-                letterSpacing: "0.02em",
-              }}>
-                <LetterReveal text="to the World" show={line1} delay={0.1} />
-              </div>
-
-              {/* divider — thin amber rule, appears with line2 */}
-              <AnimatePresence>
-                {line2 && (
-                  <motion.div
-                    initial={{ scaleX: 0, opacity: 0 }}
-                    animate={{ scaleX: 1, opacity: 1 }}
-                    transition={{ duration: 1.4, ease: [0.13, 1, 0.3, 1] }}
-                    style={{
-                      width: "clamp(60px, 10vw, 120px)", height: 1,
-                      background: "rgba(245,158,11,0.45)",
-                      margin: "0.6em auto 0.6em",
-                    }}
-                  />
-                )}
-              </AnimatePresence>
-
-              {/* "of Computer Science" — upright, amber/gold */}
-              <div style={{
-                fontSize: "clamp(1.6rem, 4.5vw, 3.8rem)",
-                fontStyle: "normal", fontWeight: 400,
-                color: "#f59e0b",
-                letterSpacing: "0.05em",
-                textShadow: "0 0 50px rgba(245,158,11,0.30)",
-              }}>
-                <LetterReveal text="of Computer Science" show={line2} delay={0.08} />
-              </div>
-
-            </div>
+            Welcome
           </motion.div>
-        )}
-      </AnimatePresence>
+
+          {/* "to the World" */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={
+              line1 && audioEnabled && !exiting
+                ? { opacity: 1, y: 0 }
+                : { opacity: 0, y: 24 }
+            }
+            transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              fontSize: "clamp(1.4rem, 4vw, 3.2rem)",
+              fontStyle: "italic", fontWeight: 400,
+              color: "rgba(254,243,199,0.50)",
+              marginBottom: "0.25em",
+              letterSpacing: "0.02em",
+              willChange: "transform, opacity",
+            }}
+          >
+            to the World
+          </motion.div>
+
+          {/* Divider — scaleX so it "draws" in from centre */}
+          <motion.div
+            initial={{ scaleX: 0, opacity: 0 }}
+            animate={
+              line2 && audioEnabled && !exiting
+                ? { scaleX: 1, opacity: 1 }
+                : { scaleX: 0, opacity: 0 }
+            }
+            transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              width: "clamp(60px, 10vw, 120px)", height: 1,
+              background: "rgba(245,158,11,0.45)",
+              margin: "0.6em auto 0.6em",
+              transformOrigin: "center",
+              willChange: "transform, opacity",
+            }}
+          />
+
+          {/* "of Computer Science" */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={
+              line2 && audioEnabled && !exiting
+                ? { opacity: 1, y: 0 }
+                : { opacity: 0, y: 20 }
+            }
+            transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.12 }}
+            style={{
+              fontSize: "clamp(1.6rem, 4.5vw, 3.8rem)",
+              fontStyle: "normal", fontWeight: 400,
+              color: "#f59e0b",
+              letterSpacing: "0.05em",
+              textShadow: "0 0 50px rgba(245,158,11,0.30)",
+              willChange: "transform, opacity",
+            }}
+          >
+            of Computer Science
+          </motion.div>
+
+        </div>
+      </div>
 
       {/* ── Scroll hint — appears after all text is shown ── */}
       <AnimatePresence>
@@ -658,12 +666,12 @@ export default function CSIntroPage() {
               transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
               style={{
                 width: 1,
-                background: "linear-gradient(to bottom, transparent, rgba(245,158,11,0.45), transparent)",
+                background: "linear-gradient(to bottom, transparent, rgba(245,158,11,0.85), transparent)",
               }}
             />
             <span style={{
-              fontSize: "0.55rem", letterSpacing: "0.4em",
-              color: "rgba(254,243,199,0.20)", textTransform: "uppercase",
+              fontSize: "0.75rem", letterSpacing: "0.38em",
+              color: "rgba(245,158,11,0.85)", textTransform: "uppercase",
               fontFamily: SERIF, fontStyle: "italic",
             }}>
               scroll
