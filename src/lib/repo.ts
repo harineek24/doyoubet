@@ -87,6 +87,13 @@ export function createEgoBankEntry(
   return entry;
 }
 
+export function deleteEgoBankEntry(tenantId: string, entryId: string): EgoBankEntry[] {
+  const existing = getEgoBankEntries(tenantId);
+  const updated = existing.filter((e) => e.id !== entryId);
+  writeKey(`egobank:${tenantId}`, updated);
+  return updated;
+}
+
 export function getXpProgress(tenantId: string): XpProgress {
   const existing = readKey<XpProgress | null>(`xp:${tenantId}`, null);
   if (existing) return existing;

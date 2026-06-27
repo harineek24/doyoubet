@@ -1,18 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Trash2 } from "lucide-react";
+import { useState } from "react";
 import type { EgoBankEntry } from "@/types/schema";
 import { cn } from "@/lib/utils";
 
 export function EgoBankCard({
   entry,
   onViewBreakdown,
+  onDelete,
 }: {
   entry: EgoBankEntry;
   onViewBreakdown: () => void;
+  onDelete: () => void;
 }) {
   const accent = entry.isXpToken ? "purple" : "emerald";
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <motion.div
@@ -21,10 +25,39 @@ export function EgoBankCard({
       whileHover={{ y: -3 }}
       transition={{ duration: 0.25 }}
       className={cn(
-        "glass mb-4 break-inside-avoid rounded-2xl border p-4",
+        "glass relative mb-4 break-inside-avoid rounded-2xl border p-4",
         accent === "emerald" ? "border-emerald/40 glow-emerald" : "border-purple/40 glow-purple"
       )}
     >
+      <button
+        onClick={() => setConfirming(true)}
+        aria-label="Delete entry"
+        className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-charcoal/80 text-foreground/40 transition hover:text-red-400"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+
+      {confirming && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-2xl bg-void/90 p-4 text-center">
+          <p className="text-sm font-medium">Delete this entry?</p>
+          <p className="text-xs text-foreground/50">This can&apos;t be undone.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-lg px-3 py-1.5 text-xs text-foreground/60 transition hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onDelete}
+              className="rounded-lg bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-3 flex h-28 w-full items-center justify-center rounded-lg bg-charcoal">
         {entry.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

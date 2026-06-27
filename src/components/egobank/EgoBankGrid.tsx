@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { createEgoBankEntry, depositXp } from "@/lib/repo";
+import { createEgoBankEntry, deleteEgoBankEntry, depositXp } from "@/lib/repo";
 import type { EgoBankEntry } from "@/types/schema";
 import { EgoBankCard } from "@/components/egobank/EgoBankCard";
 import { DepositModal } from "@/components/egobank/DepositModal";
@@ -32,6 +32,11 @@ export function EgoBankGrid({
     setDepositing(false);
   }
 
+  function handleDelete(entryId: string) {
+    deleteEgoBankEntry(tenantId, entryId);
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -58,6 +63,7 @@ export function EgoBankGrid({
               key={entry.id}
               entry={entry}
               onViewBreakdown={() => setViewing(entry)}
+              onDelete={() => handleDelete(entry.id)}
             />
           ))}
         </div>
