@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Compass, Dice5, Lock } from "lucide-react";
+import { Compass, Dice5, Code2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,7 +39,11 @@ export default function OnboardingPage() {
       updatedAt: new Date().toISOString(),
     });
     getTenants(user!.id);
-    router.replace("/dashboard/study");
+    if (domain === "cs_sde") {
+      router.replace("/cs-intro");
+    } else {
+      router.replace("/dashboard/study");
+    }
   }
 
   return (
@@ -69,11 +73,11 @@ export default function OnboardingPage() {
               description="Any subject — language, fitness, music, anything."
             />
             <OptionCard
-              active={false}
-              disabled
-              icon={<Lock className="h-4 w-4" />}
+              active={domain === "cs_sde"}
+              onClick={() => setDomain("cs_sde")}
+              icon={<Code2 className="h-4 w-4" />}
               title="CS / SDE"
-              description="Coming soon."
+              description="Data structures, algorithms, systems, and more."
             />
           </div>
         </section>
