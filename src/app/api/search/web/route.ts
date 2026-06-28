@@ -19,9 +19,11 @@ export async function GET(request: NextRequest) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ query, max_results: 5 }),
+    body: JSON.stringify({ api_key: apiKey, query, max_results: 5 }),
   });
   if (!res.ok) {
+    const errorBody = await res.text();
+    console.error("Tavily search failed", res.status, errorBody);
     return NextResponse.json(
       { configured: true, results: [] satisfies WebSearchResult[], error: "Search request failed" },
       { status: 502 }
