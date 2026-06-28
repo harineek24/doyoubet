@@ -7,20 +7,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ configured: true, results: [] satisfies WebSearchResult[] });
   }
 
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
-  const cx = process.env.GOOGLE_CSE_CX;
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
 
-  if (!apiKey || !cx) {
+  if (!apiKey) {
     return NextResponse.json({ configured: false, results: [] satisfies WebSearchResult[] });
   }
 
-  const url = new URL("https://www.googleapis.com/customsearch/v1");
-  url.searchParams.set("key", apiKey);
-  url.searchParams.set("cx", cx);
+  const url = new URL("https://api.search.brave.com/res/v1/web/search");
   url.searchParams.set("q", query);
-  url.searchParams.set("num", "5");
+  url.searchParams.set("count", "5");
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": apiKey,
+    },
+  });
   if (!res.ok) {
     return NextResponse.json(
       { configured: true, results: [] satisfies WebSearchResult[], error: "Search request failed" },
@@ -29,11 +31,13 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await res.json();
-  const results: WebSearchResult[] = (data.items ?? []).map((item: { title: string; link: string; snippet: string }) => ({
-    title: item.title,
-    url: item.link,
-    snippet: item.snippet,
-  }));
+  const results: WebSearchResult[] = (data.web?.results ?? []).map(
+    (item: { title: string; url: string; description: string }) => ({
+      title: item.title,
+      url: item.url,
+      snippet: item.description,
+    })
+  );
 
   return NextResponse.json({ configured: true, results });
 }
