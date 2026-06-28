@@ -7,21 +7,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ configured: true, results: [] satisfies WebSearchResult[] });
   }
 
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  const apiKey = process.env.TAVILY_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ configured: false, results: [] satisfies WebSearchResult[] });
   }
 
-  const url = new URL("https://api.search.brave.com/res/v1/web/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("count", "5");
-
-  const res = await fetch(url.toString(), {
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
     headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": apiKey,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
+    body: JSON.stringify({ query, max_results: 5 }),
   });
   if (!res.ok) {
     return NextResponse.json(
@@ -31,11 +29,11 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await res.json();
-  const results: WebSearchResult[] = (data.web?.results ?? []).map(
-    (item: { title: string; url: string; description: string }) => ({
+  const results: WebSearchResult[] = (data.results ?? []).map(
+    (item: { title: string; url: string; content: string }) => ({
       title: item.title,
       url: item.url,
-      snippet: item.description,
+      snippet: item.content,
     })
   );
 
