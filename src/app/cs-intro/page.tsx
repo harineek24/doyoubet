@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { getPreferences } from "@/lib/repo";
+import type { Subject } from "@/types/schema";
+
+const SUBJECT_LABELS: Record<Subject, string> = {
+  computer_science: "Computer Science",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -407,12 +414,17 @@ const SERIF = 'var(--font-playfair), Georgia, "Book Antiqua", Palatino, serif';
 
 export default function CSIntroPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<CinematicEngine | null>(null);
   const stopDroneRef = useRef<(() => void) | null>(null);
   const exitingRef = useRef(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const touchStartY = useRef(0);
+
+  const prefs = user ? getPreferences(user.id) : null;
+  const subjectLabel = prefs?.subject ? SUBJECT_LABELS[prefs.subject] : null;
+  const exitTarget = prefs?.learningStyle === "structured" ? "/cs-journey" : "/dashboard/study";
 
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [line0, setLine0] = useState(false);
@@ -438,9 +450,9 @@ export default function CSIntroPage() {
     exitingRef.current = true;
     stopDroneRef.current?.();
     setExiting(true);
-    const t = setTimeout(() => router.replace("/cs-journey"), 1600);
+    const t = setTimeout(() => router.replace(exitTarget), 1600);
     timersRef.current.push(t);
-  }, [router]);
+  }, [router, exitTarget]);
 
   const handleBegin = useCallback(() => {
     setAudioEnabled(true);
@@ -605,44 +617,48 @@ export default function CSIntroPage() {
             to the World
           </motion.div>
 
-          {/* Divider — scaleX so it "draws" in from centre */}
-          <motion.div
-            initial={{ scaleX: 0, opacity: 0 }}
-            animate={
-              line2 && audioEnabled && !exiting
-                ? { scaleX: 1, opacity: 1 }
-                : { scaleX: 0, opacity: 0 }
-            }
-            transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              width: "clamp(60px, 10vw, 120px)", height: 1,
-              background: "rgba(245,158,11,0.45)",
-              margin: "0.6em auto 0.6em",
-              transformOrigin: "center",
-              willChange: "transform, opacity",
-            }}
-          />
+          {subjectLabel && (
+            <>
+              {/* Divider — scaleX so it "draws" in from centre */}
+              <motion.div
+                initial={{ scaleX: 0, opacity: 0 }}
+                animate={
+                  line2 && audioEnabled && !exiting
+                    ? { scaleX: 1, opacity: 1 }
+                    : { scaleX: 0, opacity: 0 }
+                }
+                transition={{ duration: 1.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  width: "clamp(60px, 10vw, 120px)", height: 1,
+                  background: "rgba(245,158,11,0.45)",
+                  margin: "0.6em auto 0.6em",
+                  transformOrigin: "center",
+                  willChange: "transform, opacity",
+                }}
+              />
 
-          {/* "of Computer Science" */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={
-              line2 && audioEnabled && !exiting
-                ? { opacity: 1, y: 0 }
-                : { opacity: 0, y: 20 }
-            }
-            transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.12 }}
-            style={{
-              fontSize: "clamp(1.6rem, 4.5vw, 3.8rem)",
-              fontStyle: "normal", fontWeight: 400,
-              color: "#f59e0b",
-              letterSpacing: "0.05em",
-              textShadow: "0 0 50px rgba(245,158,11,0.30)",
-              willChange: "transform, opacity",
-            }}
-          >
-            of Computer Science
-          </motion.div>
+              {/* "of {subject}" */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={
+                  line2 && audioEnabled && !exiting
+                    ? { opacity: 1, y: 0 }
+                    : { opacity: 0, y: 20 }
+                }
+                transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.12 }}
+                style={{
+                  fontSize: "clamp(1.6rem, 4.5vw, 3.8rem)",
+                  fontStyle: "normal", fontWeight: 400,
+                  color: "#f59e0b",
+                  letterSpacing: "0.05em",
+                  textShadow: "0 0 50px rgba(245,158,11,0.30)",
+                  willChange: "transform, opacity",
+                }}
+              >
+                of {subjectLabel}
+              </motion.div>
+            </>
+          )}
 
         </div>
       </div>

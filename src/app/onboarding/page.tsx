@@ -6,13 +6,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPreferences, getTenants, savePreferences } from "@/lib/repo";
-import type { Domain, LearningStyle } from "@/types/schema";
+import type { Domain, LearningStyle, Subject } from "@/types/schema";
 import { cn } from "@/lib/utils";
+
+const SUBJECTS: { value: Subject; label: string }[] = [
+  { value: "computer_science", label: "Computer Science" },
+];
 
 export default function OnboardingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [domain, setDomain] = useState<Domain>("generic");
+  const [subject, setSubject] = useState<Subject>(SUBJECTS[0].value);
   const [learningStyle, setLearningStyle] = useState<LearningStyle>("spontaneous");
 
   useEffect(() => {
@@ -30,21 +35,25 @@ export default function OnboardingPage() {
 
   if (!user) return null;
 
+  function handleDomainChange(next: Domain) {
+    setDomain(next);
+    if (next === "generic") setLearningStyle("spontaneous");
+  }
+
   function handleContinue() {
     savePreferences({
       userId: user!.id,
       domain,
+      subject: domain === "cs_sde" ? subject : null,
       learningStyle,
       activeTenantId: null,
       updatedAt: new Date().toISOString(),
     });
     getTenants(user!.id);
-    if (domain === "cs_sde") {
-      router.replace("/cs-intro");
-    } else {
-      router.replace("/dashboard/study");
-    }
+    router.replace("/cs-intro");
   }
+
+  const structuredDisabled = domain === "generic";
 
   return (
     <main className="flex min-h-screen flex-1 items-center justify-center px-6 py-12">
@@ -68,18 +77,35 @@ export default function OnboardingPage() {
           <div className="grid grid-cols-2 gap-3">
             <OptionCard
               active={domain === "generic"}
-              onClick={() => setDomain("generic")}
-              title="Generic"
-              description="Any subject — language, fitness, music, anything."
+              onClick={() => handleDomainChange("generic")}
+              title="Learn your own subject"
+              description="Any subject — language, fitness, music, anything. Build your own path."
             />
             <OptionCard
               active={domain === "cs_sde"}
-              onClick={() => setDomain("cs_sde")}
+              onClick={() => handleDomainChange("cs_sde")}
               icon={<Code2 className="h-4 w-4" />}
-              title="CS / SDE"
-              description="Data structures, algorithms, systems, and more."
+              title="Learn a subject available here"
+              description="Pick from subjects with a guided curriculum already built."
             />
           </div>
+
+          {domain === "cs_sde" && (
+            <div className="mt-3">
+              <label className="mb-1.5 block text-xs text-foreground/50">Subject</label>
+              <select
+                value={subject}
+                onChange={(e) => setSubject(e.target.value as Subject)}
+                className="glass w-full rounded-xl p-3 text-sm"
+              >
+                {SUBJECTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </section>
 
         <section className="mt-6">
@@ -96,10 +122,15 @@ export default function OnboardingPage() {
             />
             <OptionCard
               active={learningStyle === "structured"}
+              disabled={structuredDisabled}
               onClick={() => setLearningStyle("structured")}
               icon={<Compass className="h-4 w-4" />}
               title="Structured"
-              description="Follow a guided roadmap, step by step."
+              description={
+                structuredDisabled
+                  ? "Pick a subject available here to unlock a guided roadmap."
+                  : "Follow a guided roadmap, step by step."
+              }
             />
           </div>
         </section>

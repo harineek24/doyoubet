@@ -1,6 +1,7 @@
 export type TenantType = "study" | "build" | "network";
 export type AccentColor = "emerald" | "purple";
 export type Domain = "generic" | "cs_sde";
+export type Subject = "computer_science";
 export type LearningStyle = "spontaneous" | "structured";
 
 export interface Profile {
@@ -13,6 +14,7 @@ export interface Profile {
 export interface UserPreferences {
   userId: string;
   domain: Domain;
+  subject: Subject | null;
   learningStyle: LearningStyle;
   activeTenantId: string | null;
   updatedAt: string;

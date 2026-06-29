@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Lenis from "lenis";
 import { JOURNEY } from "@/components/cs-journey/journeyData";
 import SideTimeline from "@/components/cs-journey/SideTimeline";
@@ -45,7 +44,6 @@ function cardCSS(offset: number): React.CSSProperties {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function CSJourneyPage() {
-  const router      = useRouter();
   const spacerRef   = useRef<HTMLDivElement>(null);
   const cardRefs    = useRef<(HTMLDivElement | null)[]>([]);
   const bgRef       = useRef<HTMLDivElement>(null);
@@ -117,18 +115,12 @@ export default function CSJourneyPage() {
         setBgGrad(`radial-gradient(ellipse 90% 65% at 50% 35%, ${JOURNEY[chId].g1} 0%, #fdf8f0 70%)`);
       }
 
-      // Auto-exit at end
-      if (rawProg >= TOTAL - 0.02) {
-        router.replace("/dashboard/study");
-        return;
-      }
-
       rafRef.current = requestAnimationFrame(frame);
     }
 
     rafRef.current = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(rafRef.current); lenis.destroy(); };
-  }, [router]);
+  }, []);
 
   return (
     <>
