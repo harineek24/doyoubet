@@ -203,7 +203,7 @@ export default function CSJourneyPage() {
       {doorChapter && (
         <DoorAnimation
           chapter={doorChapter}
-          onDone={() => router.replace("/dashboard/study")}
+          onDone={() => router.replace("/cs-roadmap")}
         />
       )}
     </>
@@ -326,42 +326,62 @@ function DoorAnimation({ chapter: ch, onDone }: { chapter: JourneyChapter; onDon
             />
           ))}
 
-          {/* Chapter title inside the world */}
+          {/* ROADMAP window — the "window at the far end of the room" */}
+          {/* Faintly visible when doors first open, grows clearer as user is pulled in */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{
-              opacity: open && !sucking ? 1 : 0,
-              y:       open && !sucking ? 0 : 24,
+            initial={{ opacity: 0 }}
+            animate={{ opacity: open ? (sucking ? 0.96 : 0.42) : 0 }}
+            transition={{ duration: 1.0, delay: open && !sucking ? 0.55 : 0 }}
+            style={{
+              position: "relative",
+              zIndex: 4,
+              width: 130, height: 84,
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              gap: 6,
+              // Window frame: bright white border, inner cream glow
+              background: "linear-gradient(145deg, #fffef8 0%, #fffdf0 50%, #fef9e7 100%)",
+              borderRadius: 7,
+              border: "2px solid rgba(255,255,255,0.85)",
+              boxShadow: [
+                "0 0 0 1px rgba(245,158,11,0.25)",
+                "0 0 28px rgba(255,252,230,0.90)",
+                "0 0 70px rgba(245,158,11,0.35)",
+                "inset 0 0 18px rgba(255,255,255,0.55)",
+              ].join(", "),
             }}
-            transition={{ duration: 0.75, delay: open ? 0.6 : 0 }}
-            style={{ textAlign: "center", position: "relative", zIndex: 2, padding: "0 2rem" }}
           >
-            <div
-              style={{
-                fontFamily: SERIF,
-                fontStyle: "italic",
-                fontWeight: 700,
-                fontSize: "clamp(1.6rem, 4vw, 3.2rem)",
-                color: ch.accent,
-                textShadow: "0 2px 20px rgba(255,255,255,0.9), 0 0 40px rgba(255,255,255,0.5)",
-                lineHeight: 1.15,
-              }}
-            >
-              {ch.title}
+            {/* Window cross-bar — gives it a real window feel */}
+            <div style={{
+              position: "absolute", left: "50%", top: 0, bottom: 0,
+              width: 1.5,
+              background: "rgba(245,158,11,0.25)",
+              transform: "translateX(-50%)",
+            }} />
+            <div style={{
+              position: "absolute", top: "50%", left: 0, right: 0,
+              height: 1.5,
+              background: "rgba(245,158,11,0.25)",
+              transform: "translateY(-50%)",
+            }} />
+            {/* ROADMAP label */}
+            <div style={{
+              fontFamily: SERIF,
+              fontSize: "0.80rem",
+              fontWeight: 700,
+              fontStyle: "italic",
+              letterSpacing: "0.14em",
+              color: "#92400e",
+              textShadow: "0 1px 6px rgba(255,255,255,0.9)",
+              position: "relative", zIndex: 1,
+            }}>
+              ROADMAP
             </div>
-            <div
-              style={{
-                fontFamily: SERIF,
-                fontStyle: "italic",
-                fontSize: "0.9rem",
-                color: ch.accent,
-                opacity: 0.72,
-                marginTop: "0.55em",
-                letterSpacing: "0.06em",
-              }}
-            >
-              {ch.sub}
-            </div>
+            <div style={{
+              position: "relative", zIndex: 1,
+              width: 30, height: 1,
+              background: "linear-gradient(to right, transparent, rgba(245,158,11,0.75), transparent)",
+            }} />
           </motion.div>
         </motion.div>
 
