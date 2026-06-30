@@ -10,6 +10,9 @@
   --emerald-glow: rgba(52, 211, 153, 0.45);
   --purple: #a855f7;
   --purple-glow: rgba(168, 85, 247, 0.45);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.45);
+  --sienna: #fb923c;
   --background: var(--void);
   --foreground: #e8e8ef;
 }
@@ -21,6 +24,8 @@
   --color-charcoal-soft: var(--charcoal-soft);
   --color-emerald: var(--emerald);
   --color-purple: var(--purple);
+  --color-amber: var(--amber);
+  --color-sienna: var(--sienna);
   --color-border-glass: var(--border-glass);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -58,6 +63,10 @@ body {
 
 .glow-purple {
   box-shadow: 0 0 24px var(--purple-glow);
+}
+
+.glow-amber {
+  box-shadow: 0 0 24px var(--amber-glow);
 }
 
 ::-webkit-scrollbar {
