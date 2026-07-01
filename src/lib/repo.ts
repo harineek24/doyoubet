@@ -5,9 +5,11 @@ import {
   makeDefaultWheelSlices,
   makeDefaultXpProgress,
 } from "@/lib/store/seed";
+import { BUILTIN_TRACKS, getBuiltinTrack } from "@/lib/store/tracks";
 import type {
   EgoBankEntry,
   Tenant,
+  Track,
   UserPreferences,
   WheelSlice,
   WheelSpinResult,
@@ -159,6 +161,28 @@ export function updateWorkbenchSubmission(
   const updated = existing.map((s) => (s.id === id ? { ...s, ...patch } : s));
   writeKey(`workbench:${tenantId}`, updated);
   return updated;
+}
+
+export function getCustomTracks(userId: string): Track[] {
+  return readKey<Track[]>(`tracks:${userId}`, []);
+}
+
+export function getAllTracks(userId: string): Track[] {
+  return [...BUILTIN_TRACKS, ...getCustomTracks(userId)];
+}
+
+export function getTrack(userId: string, trackId: string): Track | undefined {
+  return getBuiltinTrack(trackId) ?? getCustomTracks(userId).find((t) => t.id === trackId);
+}
+
+export function saveCustomTrack(userId: string, trackToSave: Track): void {
+  const existing = getCustomTracks(userId).filter((t) => t.id !== trackToSave.id);
+  writeKey(`tracks:${userId}`, [trackToSave, ...existing]);
+}
+
+export function deleteCustomTrack(userId: string, trackId: string): void {
+  const existing = getCustomTracks(userId).filter((t) => t.id !== trackId);
+  writeKey(`tracks:${userId}`, existing);
 }
 
 export interface InternalSearchResult {

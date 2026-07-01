@@ -5,7 +5,7 @@ import { Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import type { WheelSlice } from "@/types/schema";
 
-const COLORS = ["#34d399", "#a855f7"];
+const COLORS = ["#f59e0b", "#fb923c"];
 const MIN_SLICES = 3;
 const MAX_SLICES = 8;
 

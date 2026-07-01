@@ -28,8 +28,9 @@ export default function OnboardingPage() {
     }
     const existing = getPreferences(user.id);
     if (existing) {
-      getTenants(user.id);
-      router.replace("/dashboard/study");
+      setDomain(existing.domain);
+      if (existing.subject) setSubject(existing.subject);
+      setLearningStyle(existing.learningStyle);
     }
   }, [loading, user, router]);
 

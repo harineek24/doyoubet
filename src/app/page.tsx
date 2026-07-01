@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPreferences } from "@/lib/repo";
 
 export default function RootPage() {
   const { user, loading } = useAuth();
@@ -11,12 +10,7 @@ export default function RootPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    const prefs = getPreferences(user.id);
-    router.replace(prefs ? "/dashboard/study" : "/onboarding");
+    router.replace(user ? "/onboarding" : "/login");
   }, [loading, user, router]);
 
   return null;
