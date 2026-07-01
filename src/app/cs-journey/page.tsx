@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -9,11 +9,51 @@ import { getAllTracks } from "@/lib/repo";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 
+type GridTrack = {
+  id: string;
+  title: string;
+  tagline: string;
+  accentColor: string;
+  isCustom: boolean;
+  chapterCount: number;
+};
+
 export default function CSJourneyPickerPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const tracks = useMemo(() => (user ? getAllTracks(user.id) : []), [user]);
+  const builtinTracks = useMemo(() => (user ? getAllTracks(user.id) : []), [user]);
+  const [dbTracks, setDbTracks] = useState<GridTrack[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/tracks")
+      .then((res) => (res.ok ? res.json() : { tracks: [] }))
+      .then(({ tracks }) => {
+        setDbTracks(
+          (tracks ?? []).map((t: { id: string; title: string; tagline: string; accent_color: string; chapter_count: number }) => ({
+            id: t.id,
+            title: t.title,
+            tagline: t.tagline,
+            accentColor: t.accent_color,
+            isCustom: true,
+            chapterCount: t.chapter_count,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const tracks: GridTrack[] = useMemo(
+    () => [
+      ...dbTracks,
+      ...builtinTracks.map((t) => ({
+        id: t.id, title: t.title, tagline: t.tagline, accentColor: t.accentColor,
+        isCustom: t.source === "ai-generated", chapterCount: t.chapters.length,
+      })),
+    ],
+    [dbTracks, builtinTracks]
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -72,7 +112,7 @@ export default function CSJourneyPickerPage() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.03 }}
-            onClick={() => router.push(`/cs-journey/${t.id}`)}
+            onClick={() => router.push(t.isCustom ? `/cs-journey/${t.id}/roadmap` : `/cs-journey/${t.id}`)}
             style={{
               textAlign: "left",
               borderRadius: 18,
@@ -85,7 +125,7 @@ export default function CSJourneyPickerPage() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: t.accentColor, boxShadow: `0 0 10px ${t.accentColor}90` }} />
-              {t.source === "ai-generated" && (
+              {t.isCustom && (
                 <span style={{ fontFamily: "var(--font-geist-mono, monospace)", fontSize: "0.6rem", letterSpacing: "0.1em", textTransform: "uppercase", color: t.accentColor, opacity: 0.7 }}>
                   your own
                 </span>
@@ -98,7 +138,7 @@ export default function CSJourneyPickerPage() {
               {t.tagline}
             </p>
             <p style={{ fontFamily: "var(--font-geist-mono, monospace)", fontSize: "0.68rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(92,61,30,0.45)", marginTop: "0.9rem" }}>
-              {t.chapters.length} chapters
+              {t.chapterCount} chapters
             </p>
           </motion.button>
         ))}

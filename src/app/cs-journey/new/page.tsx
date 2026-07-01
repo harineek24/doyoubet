@@ -4,11 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { buildTrack } from "@/lib/store/tracks";
-import { saveCustomTrack } from "@/lib/repo";
-import type { TrackChapter } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
+
+type ChapterPreview = { chapter_id: string; title: string; action: "created" | "updated"; status: "ready" | "error" };
 
 export default function NewSubjectPage() {
   const { user } = useAuth();
@@ -19,7 +18,7 @@ export default function NewSubjectPage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trackId, setTrackId] = useState<string | null>(null);
-  const [chapters, setChapters] = useState<TrackChapter[] | null>(null);
+  const [chapters, setChapters] = useState<ChapterPreview[] | null>(null);
 
   async function handleGenerate() {
     if (!title.trim() || !notes.trim() || generating) return;
@@ -27,15 +26,15 @@ export default function NewSubjectPage() {
     setError(null);
     setChapters(null);
     try {
-      const res = await fetch("/api/tracks/generate", {
+      const res = await fetch("/api/tracks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, notes }),
+        body: JSON.stringify({ title, raw_text: notes }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed.");
-      setTrackId(data.trackId);
-      setChapters(data.chapters);
+      setTrackId(data.track_id);
+      setChapters(data.chapters_affected);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed.");
     } finally {
@@ -43,19 +42,9 @@ export default function NewSubjectPage() {
     }
   }
 
-  function handleSave() {
-    if (!user || !trackId || !chapters) return;
-    const newTrack = buildTrack(
-      trackId,
-      title,
-      notes.slice(0, 140),
-      chapters,
-      user.id,
-      "ai-generated",
-      notes
-    );
-    saveCustomTrack(user.id, newTrack);
-    router.push(`/cs-journey/${trackId}`);
+  function handleContinue() {
+    if (!trackId) return;
+    router.push(`/cs-journey/${trackId}/roadmap`);
   }
 
   if (!user) return null;
@@ -154,6 +143,9 @@ export default function NewSubjectPage() {
           {generating && (
             <div style={{ borderRadius: 14, border: "1px dashed rgba(146,64,14,0.25)", padding: "2.5rem 1.5rem", textAlign: "center" }}>
               <Loader2 className="mx-auto h-5 w-5 animate-spin" style={{ color: "#92400e" }} />
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.8rem", color: "rgba(146,64,14,0.5)", marginTop: 10 }}>
+                Classifying into chapters and generating flashcards + notes…
+              </p>
             </div>
           )}
 
@@ -161,26 +153,23 @@ export default function NewSubjectPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "70vh", overflowY: "auto" }}>
               {chapters.map((ch) => (
                 <div
-                  key={ch.id}
+                  key={ch.chapter_id}
                   style={{
                     borderRadius: 12, padding: "12px 16px",
-                    background: "#fffdf8", border: `1px solid ${ch.accent}33`,
+                    background: "#fffdf8", border: `1px solid ${ch.status === "ready" ? "#f59e0b33" : "#dc262633"}`,
                   }}
                 >
-                  <p style={{ fontFamily: SERIF, fontSize: "0.68rem", letterSpacing: "0.14em", textTransform: "uppercase", color: ch.accent, fontStyle: "italic", margin: 0 }}>
-                    {ch.num} · {ch.sub}
+                  <p style={{ fontFamily: SERIF, fontSize: "0.68rem", letterSpacing: "0.14em", textTransform: "uppercase", color: ch.status === "ready" ? "#92400e" : "#dc2626", fontStyle: "italic", margin: 0 }}>
+                    {ch.action} · {ch.status}
                   </p>
-                  <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "1rem", color: "#1c1008", margin: "0.2rem 0 0.3rem" }}>
+                  <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "1rem", color: "#1c1008", margin: "0.2rem 0 0" }}>
                     {ch.title}
-                  </p>
-                  <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.8rem", color: "#5c3d2e", margin: 0, lineHeight: 1.5 }}>
-                    {ch.desc}
                   </p>
                 </div>
               ))}
 
               <button
-                onClick={handleSave}
+                onClick={handleContinue}
                 style={{
                   marginTop: 6,
                   fontFamily: SERIF, fontSize: "0.85rem", fontStyle: "italic", fontWeight: 700,
@@ -191,7 +180,7 @@ export default function NewSubjectPage() {
                   boxShadow: "0 6px 20px rgba(245,158,11,0.35)",
                 }}
               >
-                Save subject →
+                Continue →
               </button>
             </div>
           )}

@@ -6,63 +6,55 @@ import {
   promptSequencePhase1,
   promptWriteScenes,
   promptPhase2Sections,
+  promptGenerateFlashcardsDirect,
 } from "./prompts";
-import { chunkNotes, splitIntoSections } from "./chunker";
+import { chunkNotes, splitIntoSections, estimateTokens } from "./chunker";
+import { MAX_TOKENS_FOR_DIRECT_PIPELINE } from "./config";
+import { CallCounter } from "./logger";
+import { parseJSON, toArray } from "./jsonParse";
 import type { Phase1Scene, Phase2Section } from "@/lib/db/experiences";
 
-function parseJSON<T>(raw: string): T {
-  const cleaned = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/g, "")
-    .trim();
-
-  // Direct parse first
-  try { return JSON.parse(cleaned) as T; } catch {}
-
-  // Bracket-matching extraction — handles trailing text after the JSON
-  for (const [open, close] of [["[", "]"], ["{", "}"]]) {
-    const start = cleaned.indexOf(open);
-    if (start === -1) continue;
-    let depth = 0, inStr = false, escape = false;
-    for (let i = start; i < cleaned.length; i++) {
-      const ch = cleaned[i];
-      if (escape) { escape = false; continue; }
-      if (ch === "\\" && inStr) { escape = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === open) depth++;
-      else if (ch === close) {
-        depth--;
-        if (depth === 0) {
-          try { return JSON.parse(cleaned.slice(start, i + 1)) as T; } catch {}
-          break;
-        }
-      }
-    }
-  }
-
-  throw new Error(`Model returned invalid JSON. First 300 chars: ${raw.slice(0, 300)}`);
+function parseScenes(raw: string): Phase1Scene[] {
+  const parsed = parseJSON<Phase1Scene[] | { scenes: Phase1Scene[] }>(raw);
+  const scenes: Phase1Scene[] = Array.isArray(parsed) ? parsed : (parsed as { scenes: Phase1Scene[] }).scenes ?? [];
+  return scenes.sort((a, b) => a.order - b.order);
 }
 
-function toArray<T>(val: T[] | Record<string, T[]>): T[] {
-  if (Array.isArray(val)) return val;
-  const first = Object.values(val as Record<string, T[]>).find(Array.isArray);
-  return first ?? [];
-}
-
-async function extractConcepts(chunk: string): Promise<string[]> {
-  const raw = await ollamaChat(promptExtractConcepts(chunk), SYSTEM_CURATOR);
+async function extractConcepts(
+  chunk: string,
+  counter: CallCounter,
+  chunkIdx: number,
+  totalChunks: number,
+  contextLabel: string
+): Promise<string[]> {
+  const label = counter.label(`Phase1 concept extraction — chunk ${chunkIdx + 1}/${totalChunks} (${contextLabel})`);
+  const raw = await ollamaChat(promptExtractConcepts(chunk), SYSTEM_CURATOR, label);
   return toArray(parseJSON<string[] | Record<string, string[]>>(raw));
 }
 
 export async function runPhase1Pipeline(
   rawText: string,
-  subject: string
+  subject: string,
+  counter: CallCounter = new CallCounter()
 ): Promise<Phase1Scene[]> {
+  const contextLabel = `"${subject}"`;
+
+  // Fast path: for anything that fits comfortably in one call (the common
+  // case), skip the extract -> merge -> sequence -> write staging entirely
+  // and go straight from raw text to final flashcard scenes. The decomposed
+  // pipeline below is a dormant fallback for chapters that grow very large.
+  if (estimateTokens(rawText) <= MAX_TOKENS_FOR_DIRECT_PIPELINE) {
+    const label = counter.label(`Phase1 flashcards (direct) — ${contextLabel}`);
+    const raw = await ollamaChat(promptGenerateFlashcardsDirect(rawText, subject), SYSTEM_CURATOR, label);
+    return parseScenes(raw);
+  }
+
   const chunks = chunkNotes(rawText);
 
   // Step 1: extract concepts from each chunk (parallel for multi-chunk)
-  const conceptsPerChunk = await Promise.all(chunks.map(extractConcepts));
+  const conceptsPerChunk = await Promise.all(
+    chunks.map((chunk, i) => extractConcepts(chunk, counter, i, chunks.length, contextLabel))
+  );
   const allConcepts = conceptsPerChunk.flat();
 
   // Step 2: merge + deduplicate if multiple chunks
@@ -70,42 +62,34 @@ export async function runPhase1Pipeline(
   if (chunks.length === 1) {
     mergedConcepts = allConcepts;
   } else {
-    const mergedRaw = await ollamaChat(
-      promptMergeConcepts(allConcepts),
-      SYSTEM_CURATOR
-    );
+    const mergeLabel = counter.label(`Phase1 concept merge — ${allConcepts.length} concepts across ${chunks.length} chunks (${contextLabel})`);
+    const mergedRaw = await ollamaChat(promptMergeConcepts(allConcepts), SYSTEM_CURATOR, mergeLabel);
     mergedConcepts = toArray(parseJSON<string[] | Record<string, string[]>>(mergedRaw));
   }
 
   // Step 3: curate + sequence into 10-12 scenes
-  const sequencedRaw = await ollamaChat(
-    promptSequencePhase1(mergedConcepts, subject),
-    SYSTEM_CURATOR
-  );
+  const sequenceLabel = counter.label(`Phase1 scene sequencing — ${mergedConcepts.length} concepts (${contextLabel})`);
+  const sequencedRaw = await ollamaChat(promptSequencePhase1(mergedConcepts, subject), SYSTEM_CURATOR, sequenceLabel);
   const sequenced = toArray(
     parseJSON<Array<{ type: string; concept: string; order: number }> | Record<string, Array<{ type: string; concept: string; order: number }>>>(sequencedRaw)
   );
 
   // Step 4: write full scene scripts
-  const scenesRaw = await ollamaChat(
-    promptWriteScenes(sequenced, subject),
-    SYSTEM_CURATOR
-  );
-  const scenesRaw2 = parseJSON<Phase1Scene[] | { scenes: Phase1Scene[] }>(scenesRaw);
-  const scenes: Phase1Scene[] = Array.isArray(scenesRaw2)
-    ? scenesRaw2
-    : (scenesRaw2 as { scenes: Phase1Scene[] }).scenes ?? [];
-
-  return scenes.sort((a, b) => a.order - b.order);
+  const writeLabel = counter.label(`Phase1 scene writing — ${sequenced.length} scenes (${contextLabel})`);
+  const scenesRaw = await ollamaChat(promptWriteScenes(sequenced, subject), SYSTEM_CURATOR, writeLabel);
+  return parseScenes(scenesRaw);
 }
 
 export async function runPhase2Pipeline(
   rawText: string,
-  sections: Array<{ index: number; content: string; preview: string }>
+  sections: Array<{ index: number; content: string; preview: string }>,
+  counter: CallCounter = new CallCounter()
 ): Promise<Phase2Section[]> {
+  const classifyLabel = counter.label(`Phase2 classify + reorder — ${sections.length} sections`);
   const classified = await ollamaChat(
     promptPhase2Sections(sections.map((s) => ({ index: s.index, preview: s.preview }))),
-    SYSTEM_CURATOR
+    SYSTEM_CURATOR,
+    classifyLabel
   );
 
   type OrderItem = {
@@ -134,11 +118,14 @@ export async function runFullPipeline(
 ): Promise<{ phase1: Phase1Scene[]; phase2: Phase2Section[] }> {
   const subject = title.trim() || "these notes";
   const sections = splitIntoSections(rawText);
+  const counter = new CallCounter();
 
+  console.log(`=== Starting AI pipeline for "${subject}" ===`);
   const [phase1, phase2] = await Promise.all([
-    runPhase1Pipeline(rawText, subject),
-    runPhase2Pipeline(rawText, sections),
+    runPhase1Pipeline(rawText, subject, counter),
+    runPhase2Pipeline(rawText, sections, counter),
   ]);
+  console.log(`=== Pipeline complete for "${subject}" — ${counter.count} LLM calls total ===`);
 
   return { phase1, phase2 };
 }

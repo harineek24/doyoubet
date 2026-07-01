@@ -8,6 +8,23 @@ import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack } from "@/lib/repo";
 import type { TrackChapter } from "@/types/schema";
+import type { Chapter as DbChapter } from "@/lib/db/chapters";
+
+// A row shown in the roadmap — either a builtin chapter (has `body`, opens
+// the inline markdown modal) or a DB-backed AI chapter (has `chapterDbId`,
+// navigates to the dedicated flashcards/deep/compare routes instead).
+type RoadmapRow = {
+  id: string;
+  num: string;
+  title: string;
+  sub: string;
+  tags: string[];
+  g2: string;
+  g3: string;
+  builtinChapter?: TrackChapter;
+  dbChapterId?: string;
+  dbStatus?: "processing" | "ready" | "error";
+};
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -27,8 +44,44 @@ export default function TrackRoadmapPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const track = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
-  const chapters = track?.chapters ?? [];
+  // Builtin tracks (hardcoded, hand-written body) resolve synchronously.
+  // AI-generated tracks live in Postgres and are fetched once.
+  const builtinTrack = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
+  const [dbTrack, setDbTrack] = useState<{ title: string; chapters: DbChapter[] } | null>(null);
+  const [dbLoading, setDbLoading] = useState(true);
+
+  useEffect(() => {
+    if (builtinTrack || !user) { setDbLoading(false); return; }
+    let cancelled = false;
+    fetch(`/api/tracks/${trackId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data) setDbTrack({ title: data.track.title, chapters: data.chapters });
+        setDbLoading(false);
+      })
+      .catch(() => { if (!cancelled) setDbLoading(false); });
+    return () => { cancelled = true; };
+  }, [builtinTrack, trackId, user]);
+
+  const trackTitle = builtinTrack?.title ?? dbTrack?.title ?? "";
+  const rows: RoadmapRow[] = useMemo(() => {
+    if (builtinTrack) {
+      return builtinTrack.chapters.map((ch) => ({
+        id: ch.id, num: ch.num, title: ch.title, sub: ch.sub, tags: ch.tags, g2: ch.g2, g3: ch.g3,
+        builtinChapter: ch,
+      }));
+    }
+    if (dbTrack) {
+      return dbTrack.chapters.map((ch, i) => ({
+        id: ch.id, num: String(i + 1).padStart(2, "0"), title: ch.title, sub: ch.sub, tags: ch.tags,
+        g2: ch.g2, g3: ch.g3, dbChapterId: ch.id, dbStatus: ch.status,
+      }));
+    }
+    return [];
+  }, [builtinTrack, dbTrack]);
+  const chapters = rows;
+  const trackFound = !!builtinTrack || !!dbTrack;
 
   const [readingChapter, setReadingChapter] = useState<TrackChapter | null>(null);
 
@@ -44,13 +97,13 @@ export default function TrackRoadmapPage() {
   const [entering, setEntering] = useState(true);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || dbLoading) return;
     if (!user) {
       router.replace("/login");
       return;
     }
-    if (!track) router.replace("/cs-journey");
-  }, [loading, user, track, router]);
+    if (!trackFound) router.replace("/cs-journey");
+  }, [loading, dbLoading, user, trackFound, router]);
 
   useEffect(() => {
     const t = setTimeout(() => setEntering(false), 60);
@@ -68,7 +121,10 @@ export default function TrackRoadmapPage() {
     card.style.top          = `${(vh - CARD_H) / 2}px`;
     card.style.borderRadius = `${BR_START}px`;
     card.style.opacity      = "1";
-  }, []);
+    // trackFound gates the whole component's render — until it's true, this
+    // effect fires with `card` still null (no DOM yet). Re-run once the card
+    // div actually exists, otherwise it stays at its JSX-default opacity: 0.
+  }, [trackFound]);
 
   useEffect(() => {
     const spacer = spacerRef.current;
@@ -135,9 +191,11 @@ export default function TrackRoadmapPage() {
 
     rafRef.current = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(rafRef.current); lenis.destroy(); };
-  }, []);
+    // Same reason as the layout effect above — spacer/card don't exist until
+    // trackFound flips true, so this must re-run once they're actually mounted.
+  }, [trackFound]);
 
-  if (!track) return null;
+  if (!trackFound) return null;
 
   return (
     <>
@@ -231,7 +289,7 @@ export default function TrackRoadmapPage() {
                 Your learning path
               </div>
               <div style={{ fontFamily: SERIF, fontSize: "clamp(1.8rem, 4vw, 3.4rem)", fontWeight: 700, fontStyle: "italic", color: "rgba(254,249,231,0.94)", lineHeight: 1.06, letterSpacing: "-0.025em" }}>
-                Your {track.title} Roadmap
+                Your {trackTitle} Roadmap
               </div>
               <div style={{ marginTop: "0.75rem", width: 52, height: 2, borderRadius: 2, background: "linear-gradient(to right, #f59e0b, rgba(245,158,11,0.15))" }} />
             </div>
@@ -240,7 +298,10 @@ export default function TrackRoadmapPage() {
               {chapters.map((ch, i) => (
                 <button
                   key={ch.id}
-                  onClick={() => setReadingChapter(ch)}
+                  onClick={() => {
+                    if (ch.builtinChapter) setReadingChapter(ch.builtinChapter);
+                    else if (ch.dbChapterId) router.push(`/cs-journey/${trackId}/chapters/${ch.dbChapterId}`);
+                  }}
                   style={{
                     flex: 1, minHeight: 64,
                     display: "flex", alignItems: "center",

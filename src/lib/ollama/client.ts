@@ -21,7 +21,7 @@ async function groqChat(prompt: string, system?: string): Promise<string> {
       model: GROQ_MODEL,
       messages,
       temperature: 0.3,
-      max_tokens: 4096,
+      max_tokens: 8000,
     }),
   });
 
@@ -59,7 +59,10 @@ export async function ollamaChat(prompt: string, system?: string): Promise<strin
       model: OLLAMA_MODEL,
       messages,
       stream: false,
-      options: { temperature: 0.3 },
+      // Ollama defaults to 2048 regardless of what the model supports.
+      // Dev-only fallback — 4096 is a safe, modest bump for local testing,
+      // not an attempt to match Groq's much larger context.
+      options: { temperature: 0.3, num_ctx: 4096 },
     }),
   });
 
@@ -69,30 +72,45 @@ export async function ollamaChat(prompt: string, system?: string): Promise<strin
 }
 
 // ── Unified entry point: Groq (with retry) → Ollama fallback ─
-export async function llmChat(prompt: string, system?: string): Promise<string> {
+// `label` identifies this call in logs, e.g. "[LLM call 3] Phase1 scene writing — 11 scenes".
+export async function llmChat(prompt: string, system?: string, label = "[LLM call]"): Promise<string> {
+  const t0 = Date.now();
+  console.log(`${label} — starting (prompt ${prompt.length} chars)`);
+
   if (process.env.GROQ_API_KEY) {
     // Up to 3 attempts with Groq, honouring the retry-after hint each time
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        return await groqChat(prompt, system);
+        const result = await groqChat(prompt, system);
+        console.log(`${label} — done via Groq in ${Date.now() - t0}ms`);
+        return result;
       } catch (err) {
-        if (!isRateLimitError(err)) throw err;
+        if (!isRateLimitError(err)) {
+          console.error(`${label} — Groq error (not rate-limit): ${(err as Error).message.slice(0, 200)}`);
+          throw err;
+        }
         const waitMs = parseRetryAfterMs((err as Error).message);
         if (attempt < 3) {
-          console.warn(`[llm] Groq rate-limited (attempt ${attempt}/3) — waiting ${(waitMs / 1000).toFixed(1)}s then retrying...`);
+          console.warn(`${label} — Groq rate-limited (attempt ${attempt}/3), waiting ${(waitMs / 1000).toFixed(1)}s then retrying...`);
           await new Promise(r => setTimeout(r, waitMs));
         } else {
-          console.warn(`[llm] Groq rate-limited after 3 attempts — falling back to Ollama`);
+          console.warn(`${label} — Groq rate-limited after 3 attempts, falling back to Ollama`);
           try {
-            return await ollamaChat(prompt, system);
+            const result = await ollamaChat(prompt, system);
+            console.log(`${label} — done via Ollama fallback in ${Date.now() - t0}ms`);
+            return result;
           } catch (ollamaErr) {
+            console.error(`${label} — FAILED: both Groq and Ollama unavailable`);
             throw new Error(`Both Groq and Ollama unavailable. Groq: ${(err as Error).message.slice(0, 120)}. Ollama: ${(ollamaErr as Error).message.slice(0, 80)}`);
           }
         }
       }
     }
   }
-  return ollamaChat(prompt, system);
+
+  const result = await ollamaChat(prompt, system);
+  console.log(`${label} — done via Ollama in ${Date.now() - t0}ms`);
+  return result;
 }
 
 // ── Availability check ────────────────────────────────────────
