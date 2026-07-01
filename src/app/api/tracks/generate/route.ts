@@ -7,17 +7,28 @@ interface RawChapter {
   sub: string;
   desc: string;
   tags: string[];
-  body: string;
 }
 
+// Split raw notes roughly evenly across n chapters by paragraph boundaries
+function splitNotes(notes: string, n: number): string[] {
+  const paragraphs = notes.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length === 0) return Array(n).fill(notes);
+  const chunkSize = Math.ceil(paragraphs.length / n);
+  const chunks: string[] = [];
+  for (let i = 0; i < n; i++) {
+    chunks.push(paragraphs.slice(i * chunkSize, (i + 1) * chunkSize).join("\n\n") || paragraphs[0]);
+  }
+  return chunks;
+}
+
+// Keep output small — Pollinations free tier caps at ~300 tokens regardless of max_tokens.
+// Body content comes from the user's own notes; we only generate the lightweight structure here.
 const SYSTEM_PROMPT = `You turn a learner's raw notes into a structured mini-course outline.
-Your entire response must be ONLY a valid JSON array — no prose before it, no prose after it, no markdown code fences.
-Start your response with [ and end it with ].
-Produce 4 to 8 chapters that break the subject into a sensible learning order.
-Each array element must be an object with exactly these string/array fields:
-"title" (short chapter title), "sub" (kicker under 6 words), "desc" (1-2 sentence summary),
-"tags" (array of 2-4 topic strings), "body" (markdown lesson content, 100-180 words, clear teaching voice).
-Output ONLY the JSON array. Nothing else.`;
+Your entire response must be ONLY a valid JSON array. Start with [ and end with ]. No prose, no code fences.
+Produce 4 to 6 chapters. Each element has exactly these fields:
+"title" (5 words max), "sub" (4 words max), "desc" (one sentence), "tags" (2-3 strings).
+Example: [{"title":"Intro","sub":"Why it matters","desc":"Overview of X.","tags":["basics"]}]
+Output ONLY the JSON array.`;
 
 // Handles JSON wrapped in markdown fences, leading/trailing prose, or truncation
 function extractJsonArray(text: string): RawChapter[] | null {
@@ -149,6 +160,10 @@ export async function POST(request: NextRequest) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
+  // Split the user's raw notes into chunks — one per chapter — so each lesson
+  // reader has real content even though we didn't ask the AI to generate body text.
+  const noteChunks = splitNotes(notes, raw.length);
+
   const chapters: TrackChapter[] = raw.map((c, i) =>
     chapter(
       trackId,
@@ -157,7 +172,7 @@ export async function POST(request: NextRequest) {
       c.sub ?? "",
       c.desc ?? "",
       Array.isArray(c.tags) ? c.tags : [],
-      c.body ?? ""
+      noteChunks[i] ?? ""
     )
   );
 
