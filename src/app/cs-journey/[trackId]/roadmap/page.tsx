@@ -339,7 +339,7 @@ export default function TrackRoadmapPage() {
 
       <AnimatePresence>
         {readingChapter && (
-          <FlashcardViewer chapter={readingChapter} trackId={trackId} rawNotes={track.rawNotes ?? undefined} onClose={() => setReadingChapter(null)} />
+          <FlashcardViewer key={readingChapter.id} chapter={readingChapter} trackId={trackId} rawNotes={track.rawNotes ?? undefined} onClose={() => setReadingChapter(null)} />
         )}
       </AnimatePresence>
     </>

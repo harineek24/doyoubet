@@ -176,6 +176,12 @@ export function saveChapterFlashcards(trackId: string, chapterId: string, cards:
   writeKey(`flashcards:${trackId}:${chapterId}`, cards);
 }
 
+export function clearTrackFlashcardCache(trackId: string, chapterIds: string[]): void {
+  for (const id of chapterIds) {
+    writeKey(`flashcards:${trackId}:${id}`, []);
+  }
+}
+
 export function getCustomTracks(userId: string): Track[] {
   return readKey<Track[]>(`tracks:${userId}`, []);
 }
@@ -189,6 +195,8 @@ export function getTrack(userId: string, trackId: string): Track | undefined {
 }
 
 export function saveCustomTrack(userId: string, trackToSave: Track): void {
+  // Clear stale flashcard caches whenever a track is overwritten
+  clearTrackFlashcardCache(trackToSave.id, trackToSave.chapters.map((c) => c.id));
   const existing = getCustomTracks(userId).filter((t) => t.id !== trackToSave.id);
   writeKey(`tracks:${userId}`, [trackToSave, ...existing]);
 }
