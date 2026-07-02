@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { llmChat } from "@/lib/ollama/client";
 import { chapter } from "@/lib/store/tracks";
-import type { TrackChapter } from "@/types/schema";
+import type { Flashcard, TrackChapter } from "@/types/schema";
+
+interface RawFlashcard {
+  question: string;
+  answer: string;
+}
 
 interface RawChapter {
   title: string;
   sub: string;
   desc: string;
   tags: string[];
-  body: string;
+  flashcards: RawFlashcard[];
 }
 
 const SYSTEM_PROMPT = `You turn a learner's raw notes into a structured mini-course outline.
 Your entire response must be ONLY a valid JSON array. Start with [ and end with ]. No prose, no code fences.
-Produce 4 to 8 chapters breaking the subject into a sensible learning order.
+Produce 4 to 6 chapters breaking the subject into a logical learning order.
 Each element must have exactly these fields:
 - "title": short chapter title (5 words max)
 - "sub": kicker subtitle (4 words max)
 - "desc": one sentence teaser
-- "tags": array of 2-4 topic strings
-- "body": full lesson content in markdown, 120-200 words, clear teaching voice
+- "tags": array of 2-3 topic strings
+- "flashcards": array of 3-5 objects, each with "question" (one clear testable question) and "answer" (2-4 sentence explanation)
 
 Output ONLY the JSON array. Nothing else.`;
 
@@ -31,7 +36,6 @@ function parseJson(text: string): RawChapter[] | null {
     if (Array.isArray(direct)) return direct;
   } catch { /* fall through */ }
 
-  // Depth-counting bracket extraction — handles trailing prose after the JSON
   for (const [open, close] of [["[", "]"]] as [string, string][]) {
     const start = cleaned.indexOf(open);
     if (start === -1) continue;
@@ -58,6 +62,10 @@ function parseJson(text: string): RawChapter[] | null {
   return null;
 }
 
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
 export async function POST(request: NextRequest) {
   const { title, notes } = await request.json();
 
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
   if (!raw || raw.length === 0) {
     console.error("[tracks/generate] Could not parse response:", content.slice(0, 400));
     return NextResponse.json(
-      { error: `Could not parse a structured outline. Response: "${content.slice(0, 300)}"` },
+      { error: `Could not parse outline. Response: "${content.slice(0, 300)}"` },
       { status: 502 }
     );
   }
@@ -93,17 +101,26 @@ export async function POST(request: NextRequest) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
-  const chapters: TrackChapter[] = raw.map((c, i) =>
-    chapter(
-      trackId,
-      i + 1,
-      c.title ?? `Chapter ${i + 1}`,
-      c.sub ?? "",
-      c.desc ?? "",
-      Array.isArray(c.tags) ? c.tags : [],
-      c.body ?? ""
-    )
-  );
+  const chapters: TrackChapter[] = raw.map((c, i) => {
+    const flashcards: Flashcard[] = (c.flashcards ?? []).map((f) => ({
+      id: uid(),
+      question: f.question ?? "",
+      answer: f.answer ?? "",
+    }));
+
+    return {
+      ...chapter(
+        trackId,
+        i + 1,
+        c.title ?? `Chapter ${i + 1}`,
+        c.sub ?? "",
+        c.desc ?? "",
+        Array.isArray(c.tags) ? c.tags : [],
+        ""
+      ),
+      flashcards,
+    };
+  });
 
   return NextResponse.json({ trackId, chapters });
 }

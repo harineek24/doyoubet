@@ -4,10 +4,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Lenis from "lenis";
-import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack } from "@/lib/repo";
-import type { TrackChapter } from "@/types/schema";
+import { bodyToCards } from "@/lib/store/flashcards";
+import type { Flashcard, TrackChapter } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -335,14 +335,30 @@ export default function TrackRoadmapPage() {
 
       <AnimatePresence>
         {readingChapter && (
-          <LessonReader chapter={readingChapter} onClose={() => setReadingChapter(null)} />
+          <FlashcardViewer chapter={readingChapter} onClose={() => setReadingChapter(null)} />
         )}
       </AnimatePresence>
     </>
   );
 }
 
-function LessonReader({ chapter: ch, onClose }: { chapter: TrackChapter; onClose: () => void }) {
+function FlashcardViewer({ chapter: ch, onClose }: { chapter: TrackChapter; onClose: () => void }) {
+  const cards: Flashcard[] =
+    ch.flashcards && ch.flashcards.length > 0
+      ? ch.flashcards
+      : bodyToCards(ch.title, ch.sub, ch.body ?? "");
+
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [tab, setTab] = useState<"cards" | "notes">("cards");
+
+  const card = cards[idx];
+
+  function next() { setIdx((i) => Math.min(i + 1, cards.length - 1)); setFlipped(false); }
+  function prev() { setIdx((i) => Math.max(i - 1, 0)); setFlipped(false); }
+
+  const allNotes = cards.map((c) => `**Q: ${c.question}**\n\n${c.answer}`).join("\n\n---\n\n");
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -351,7 +367,7 @@ function LessonReader({ chapter: ch, onClose }: { chapter: TrackChapter; onClose
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 400,
-        background: "rgba(10,8,5,0.72)",
+        background: "rgba(10,8,5,0.82)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "2rem",
       }}
@@ -362,35 +378,143 @@ function LessonReader({ chapter: ch, onClose }: { chapter: TrackChapter; onClose
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(640px, 100%)",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          borderRadius: 18,
+          width: "min(680px, 100%)",
+          maxHeight: "85vh",
+          display: "flex", flexDirection: "column",
+          borderRadius: 20,
           background: "#fffdf8",
           border: `1px solid ${ch.accent}33`,
-          padding: "2rem 2.2rem",
+          overflow: "hidden",
         }}
       >
-        <p style={{ fontFamily: SERIF, fontSize: "0.72rem", letterSpacing: "0.18em", textTransform: "uppercase", color: ch.accent, fontStyle: "italic", margin: 0 }}>
-          {ch.num} · {ch.sub}
-        </p>
-        <h2 style={{ fontFamily: SERIF, fontSize: "1.7rem", fontWeight: 700, color: "#1c1008", margin: "0.4rem 0 1rem" }}>
-          {ch.title}
-        </h2>
-        <article className="markdown-body" style={{ fontFamily: SERIF, fontSize: "0.95rem", lineHeight: 1.7, color: "#3c2a1e" }}>
-          <ReactMarkdown>{ch.body}</ReactMarkdown>
-        </article>
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: "1.5rem",
-            fontFamily: SERIF, fontSize: "0.8rem", fontStyle: "italic",
-            color: ch.accent, background: "none", border: "none", cursor: "pointer",
-            padding: 0,
-          }}
-        >
-          ← Back to roadmap
-        </button>
+        {/* Header */}
+        <div style={{ padding: "1.25rem 1.75rem 0", flexShrink: 0 }}>
+          <p style={{ fontFamily: SERIF, fontSize: "0.7rem", letterSpacing: "0.18em", textTransform: "uppercase", color: ch.accent, fontStyle: "italic", margin: 0 }}>
+            {ch.num} · {ch.sub}
+          </p>
+          <h2 style={{ fontFamily: SERIF, fontSize: "1.45rem", fontWeight: 700, color: "#1c1008", margin: "0.2rem 0 0.9rem" }}>
+            {ch.title}
+          </h2>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(146,64,14,0.15)" }}>
+            {(["cards", "notes"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                style={{
+                  fontFamily: SERIF, fontStyle: "italic",
+                  fontSize: "0.82rem", padding: "0.45rem 1.1rem",
+                  background: "none", border: "none", cursor: "pointer",
+                  borderBottom: tab === t ? `2px solid ${ch.accent}` : "2px solid transparent",
+                  color: tab === t ? ch.accent : "rgba(92,61,46,0.45)",
+                  fontWeight: tab === t ? 700 : 400,
+                  marginBottom: -1,
+                }}
+              >
+                {t === "cards" ? `Flashcards (${cards.length})` : "All Notes"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1.75rem 1.5rem" }}>
+          {tab === "cards" && card && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.25rem" }}>
+              {/* Flip card */}
+              <div
+                onClick={() => setFlipped((f) => !f)}
+                style={{
+                  width: "100%", minHeight: 200,
+                  perspective: 900,
+                  cursor: "pointer",
+                }}
+              >
+                <motion.div
+                  animate={{ rotateY: flipped ? 180 : 0 }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                  style={{ position: "relative", width: "100%", minHeight: 200, transformStyle: "preserve-3d" }}
+                >
+                  {/* Front — question only */}
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    backfaceVisibility: "hidden",
+                    borderRadius: 14,
+                    background: `linear-gradient(145deg, ${ch.g1}, ${ch.g2})`,
+                    border: `1px solid ${ch.accent}33`,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    padding: "1.5rem 2rem", textAlign: "center",
+                    minHeight: 200,
+                  }}>
+                    <p style={{ fontFamily: SERIF, fontSize: "0.68rem", letterSpacing: "0.2em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 0.9rem" }}>
+                      Question {idx + 1} of {cards.length} · tap to reveal
+                    </p>
+                    <p style={{ fontFamily: SERIF, fontSize: "clamp(1rem,2.2vw,1.3rem)", fontWeight: 700, color: "#1c1008", lineHeight: 1.4, margin: 0 }}>
+                      {card.question}
+                    </p>
+                  </div>
+                  {/* Back — question + answer */}
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    backfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)",
+                    borderRadius: 14,
+                    background: "#fffdf8",
+                    border: `1px solid ${ch.accent}55`,
+                    padding: "1.5rem 2rem",
+                    minHeight: 200,
+                    overflowY: "auto",
+                  }}>
+                    <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.5rem" }}>
+                      {card.question}
+                    </p>
+                    <p style={{ fontFamily: SERIF, fontSize: "0.92rem", color: "#3c2a1e", lineHeight: 1.65, margin: 0 }}>
+                      {card.answer}
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Navigation */}
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                <button onClick={prev} disabled={idx === 0} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent, background: "none", border: `1px solid ${ch.accent}44`, borderRadius: 20, padding: "5px 16px", cursor: idx === 0 ? "default" : "pointer", opacity: idx === 0 ? 0.3 : 1 }}>
+                  ← Prev
+                </button>
+                <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(92,61,46,0.5)" }}>
+                  {idx + 1} / {cards.length}
+                </span>
+                <button onClick={next} disabled={idx === cards.length - 1} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent, background: "none", border: `1px solid ${ch.accent}44`, borderRadius: 20, padding: "5px 16px", cursor: idx === cards.length - 1 ? "default" : "pointer", opacity: idx === cards.length - 1 ? 0.3 : 1 }}>
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === "notes" && (
+            <div style={{ fontFamily: SERIF, fontSize: "0.92rem", color: "#3c2a1e", lineHeight: 1.7 }}>
+              {cards.map((c, i) => (
+                <div key={c.id} style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: i < cards.length - 1 ? "1px solid rgba(146,64,14,0.12)" : "none" }}>
+                  <p style={{ fontWeight: 700, color: "#1c1008", margin: "0 0 0.4rem", fontSize: "0.95rem" }}>
+                    {c.question}
+                  </p>
+                  <p style={{ margin: 0 }}>{c.answer}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, padding: "0.75rem 1.75rem", borderTop: "1px solid rgba(146,64,14,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(92,61,46,0.4)" }}>
+            {cards.length} flashcard{cards.length !== 1 ? "s" : ""}
+          </span>
+          <button onClick={onClose} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.8rem", color: ch.accent, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            ← Back to roadmap
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
