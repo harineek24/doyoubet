@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Sparkles, ChevronDown, ChevronUp, Trash2, Plus } from "lucide-react";
+import { Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildTrack } from "@/lib/store/tracks";
 import { saveCustomTrack } from "@/lib/repo";
-import type { Flashcard, TrackChapter } from "@/types/schema";
+import type { TrackChapter } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -38,69 +38,41 @@ function Divider() {
   return <div style={{ width: 1, height: 16, background: "rgba(146,64,14,0.2)", margin: "0 3px", flexShrink: 0 }} />;
 }
 
-// ── Editable chapter card ─────────────────────────────────────────────────────
-function ChapterCard({ chapter, index, onUpdate, onDelete, onAddCard, onDeleteCard }: {
+// ── Chapter preview card (builder only — no flashcard editing here) ──────────
+function ChapterCard({ chapter, onUpdate, onDelete }: {
   chapter: TrackChapter;
-  index: number;
   onUpdate: (patch: Partial<TrackChapter>) => void;
   onDelete: () => void;
-  onAddCard: () => void;
-  onDeleteCard: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(index === 0);
-  const cards = chapter.flashcards ?? [];
-
   return (
-    <div style={{ borderRadius: 14, border: `1px solid ${chapter.accent}33`, background: "#fffdf8", overflow: "hidden" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-        background: `linear-gradient(135deg, ${chapter.g1}88, ${chapter.g2}55)`,
-      }}>
-        <button onClick={() => setOpen((o) => !o)} style={{ background: "none", border: "none", cursor: "pointer", color: chapter.accent, flexShrink: 0 }}>
-          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        <span style={{ fontFamily: MONO, fontSize: "0.65rem", letterSpacing: "0.14em", color: chapter.accent, opacity: 0.7, flexShrink: 0 }}>
+    <div style={{ borderRadius: 12, border: `1px solid ${chapter.accent}33`, background: "#fffdf8", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 13px", background: `linear-gradient(135deg, ${chapter.g1}88, ${chapter.g2}55)` }}>
+        <span style={{ fontFamily: MONO, fontSize: "0.63rem", letterSpacing: "0.14em", color: chapter.accent, opacity: 0.7, flexShrink: 0 }}>
           {chapter.num}
         </span>
         <input
           value={chapter.title}
           onChange={(e) => onUpdate({ title: e.target.value })}
-          style={{ flex: 1, background: "none", border: "none", outline: "none", fontFamily: SERIF, fontWeight: 700, fontSize: "0.95rem", color: "#1c1008" }}
+          style={{ flex: 1, background: "none", border: "none", outline: "none", fontFamily: SERIF, fontWeight: 700, fontSize: "0.92rem", color: "#1c1008" }}
         />
-        <button onClick={onDelete} title="Delete chapter" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(185,28,28,0.55)", flexShrink: 0 }}>
+        <button onClick={onDelete} title="Delete chapter" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(185,28,28,0.5)", flexShrink: 0 }}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-
-      {open && (
-        <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {cards.map((card) => (
-            <div key={card.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(245,158,11,0.05)", borderRadius: 8, padding: "8px 10px" }}>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                <input
-                  value={card.question}
-                  onChange={(e) => onUpdate({ flashcards: cards.map((c) => c.id === card.id ? { ...c, question: e.target.value } : c) })}
-                  placeholder="Question"
-                  style={{ background: "none", border: "none", borderBottom: "1px solid rgba(146,64,14,0.18)", outline: "none", fontFamily: SERIF, fontWeight: 600, fontSize: "0.82rem", color: "#1c1008", paddingBottom: 3, width: "100%" }}
-                />
-                <textarea
-                  value={card.answer}
-                  onChange={(e) => onUpdate({ flashcards: cards.map((c) => c.id === card.id ? { ...c, answer: e.target.value } : c) })}
-                  placeholder="Answer"
-                  rows={2}
-                  style={{ background: "none", border: "none", outline: "none", fontFamily: SERIF, fontSize: "0.8rem", color: "#5c3d2e", resize: "vertical", lineHeight: 1.5, width: "100%" }}
-                />
-              </div>
-              <button onClick={() => onDeleteCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(185,28,28,0.4)", flexShrink: 0, paddingTop: 2 }}>
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
+      <div style={{ padding: "7px 13px 10px" }}>
+        <textarea
+          value={chapter.desc}
+          onChange={(e) => onUpdate({ desc: e.target.value })}
+          rows={2}
+          placeholder="Chapter description…"
+          style={{ width: "100%", background: "none", border: "none", outline: "none", fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "#5c3d2e", resize: "none", lineHeight: 1.5 }}
+        />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
+          {chapter.tags.map((t) => (
+            <span key={t} style={{ fontFamily: MONO, fontSize: "0.6rem", letterSpacing: "0.08em", textTransform: "uppercase", color: chapter.accent, border: `1px solid ${chapter.accent}44`, background: `${chapter.accent}10`, borderRadius: 20, padding: "2px 9px" }}>{t}</span>
           ))}
-          <button onClick={onAddCard} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: "rgba(146,64,14,0.55)", fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", padding: 0 }}>
-            <Plus className="h-3.5 w-3.5" /> Add flashcard
-          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -167,15 +139,6 @@ export default function NewSubjectPage() {
 
   function deleteChapter(i: number) {
     setChapters((prev) => prev ? prev.filter((_, j) => j !== i) : prev);
-  }
-
-  function addFlashcard(chIdx: number) {
-    const card: Flashcard = { id: Math.random().toString(36).slice(2), question: "", answer: "" };
-    setChapters((prev) => prev ? prev.map((c, j) => j === chIdx ? { ...c, flashcards: [...(c.flashcards ?? []), card] } : c) : prev);
-  }
-
-  function deleteFlashcard(chIdx: number, cardId: string) {
-    setChapters((prev) => prev ? prev.map((c, j) => j === chIdx ? { ...c, flashcards: (c.flashcards ?? []).filter((f) => f.id !== cardId) } : c) : prev);
   }
 
   function handleSave() {
@@ -361,11 +324,8 @@ export default function NewSubjectPage() {
               <ChapterCard
                 key={ch.id}
                 chapter={ch}
-                index={i}
                 onUpdate={(patch) => updateChapter(i, patch)}
                 onDelete={() => deleteChapter(i)}
-                onAddCard={() => addFlashcard(i)}
-                onDeleteCard={(cardId) => deleteFlashcard(i, cardId)}
               />
             ))}
           </div>

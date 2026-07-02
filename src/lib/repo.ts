@@ -8,6 +8,7 @@ import {
 import { BUILTIN_TRACKS, getBuiltinTrack } from "@/lib/store/tracks";
 import type {
   EgoBankEntry,
+  Flashcard,
   Tenant,
   Track,
   UserPreferences,
@@ -161,6 +162,18 @@ export function updateWorkbenchSubmission(
   const updated = existing.map((s) => (s.id === id ? { ...s, ...patch } : s));
   writeKey(`workbench:${tenantId}`, updated);
   return updated;
+}
+
+// ── Per-chapter flashcard cache (scoped by trackId + chapterId) ──────────────
+// Allows builtin tracks and AI-generated chapters to lazily cache their
+// flashcards without requiring a full track overwrite each time.
+
+export function getChapterFlashcards(trackId: string, chapterId: string): Flashcard[] {
+  return readKey<Flashcard[]>(`flashcards:${trackId}:${chapterId}`, []);
+}
+
+export function saveChapterFlashcards(trackId: string, chapterId: string, cards: Flashcard[]): void {
+  writeKey(`flashcards:${trackId}:${chapterId}`, cards);
 }
 
 export function getCustomTracks(userId: string): Track[] {
