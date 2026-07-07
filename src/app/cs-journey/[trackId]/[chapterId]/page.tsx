@@ -221,16 +221,9 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
                   >
                     {/* Front — question only */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: 18, background: `linear-gradient(145deg, ${ch.g1}, ${ch.g2})`, border: `1px solid ${ch.accent}33`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", textAlign: "center", minHeight: 220 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
-                        <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: 0 }}>
-                          {idx + 1} of {cards.length} · tap to reveal
-                        </p>
-                        {card?.repeat && (
-                          <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.58rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#fffdf8", background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 20, padding: "2px 8px" }}>
-                            Revisit
-                          </span>
-                        )}
-                      </div>
+                      <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 1rem" }}>
+                        {idx + 1} of {cards.length} · tap to reveal
+                      </p>
                       <p style={{ fontFamily: SERIF, fontSize: "clamp(1.1rem, 2.5vw, 1.45rem)", fontWeight: 700, color: "#1c1008", lineHeight: 1.4, margin: 0 }}>
                         {card?.question}
                       </p>

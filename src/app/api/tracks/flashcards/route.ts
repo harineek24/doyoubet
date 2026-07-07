@@ -9,12 +9,11 @@ Each object has:
 - "question": one clear, specific, testable question (the memory-test side)
 - "answer": 2-4 sentences that fully explain the concept — the answer must ADD information, not just restate the question
 - "code": optional — a short runnable snippet ≤8 lines when seeing real syntax genuinely helps; omit entirely for pure theory questions
-- "repeat": true if this card revisits a concept already covered earlier in the set (for spaced repetition), omit otherwise
 
-Repeating key concepts across cards is encouraged for memorization — just mark them with repeat:true.
+Repeating key concepts across cards is encouraged for memorization.
 Output ONLY the JSON array.`;
 
-function parseJson(text: string): { question: string; answer: string; code?: string; repeat?: boolean }[] | null {
+function parseJson(text: string): { question: string; answer: string; code?: string }[] | null {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   try { const d = JSON.parse(cleaned); if (Array.isArray(d)) return d; } catch { /* */ }
   const start = cleaned.indexOf("[");
@@ -68,7 +67,6 @@ export async function POST(req: NextRequest) {
     question: f.question ?? "",
     answer: f.answer ?? "",
     ...(f.code ? { code: f.code } : {}),
-    ...(f.repeat ? { repeat: true } : {}),
   }));
 
   return NextResponse.json({ flashcards });

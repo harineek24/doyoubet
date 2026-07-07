@@ -114,7 +114,6 @@ export interface Flashcard {
   question: string;
   answer: string;
   code?: string;
-  repeat?: boolean;
 }
 
 export interface TrackChapter {
