@@ -141,10 +141,37 @@ export default function NewSubjectPage() {
     setChapters((prev) => prev ? prev.filter((_, j) => j !== i) : prev);
   }
 
-  function handleSave() {
-    if (!user || !trackId || !chapters) return;
-    const notes = editorRef.current?.innerText?.trim() ?? "";
-    const newTrack = buildTrack(trackId, title, notes.slice(0, 140), chapters, user.id, "ai-generated", notes);
+  const [saving, setSaving]           = useState(false);
+  const [saveProgress, setSaveProgress] = useState("");
+
+  async function handleSave() {
+    if (!user || !trackId || !chapters || saving) return;
+    setSaving(true);
+    const rawNotes = editorRef.current?.innerText?.trim() ?? "";
+
+    // Split notes into N chunks — one per chapter — so each chapter's
+    // flashcards are grounded in the relevant section of the user's notes.
+    const paragraphs = rawNotes.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    const chunkSize  = Math.max(1, Math.ceil(paragraphs.length / chapters.length));
+    const enriched   = [...chapters];
+
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      setSaveProgress(`⟳ Generating flashcards for "${ch.title}" (${i + 1}/${chapters.length})…`);
+      const noteChunk = paragraphs.slice(i * chunkSize, (i + 1) * chunkSize).join("\n\n") || rawNotes;
+      try {
+        const res  = await fetch("/api/tracks/flashcards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: ch.title, sub: ch.sub, desc: ch.desc, tags: ch.tags, notes: noteChunk }),
+        });
+        const data = await res.json();
+        if (data.flashcards?.length) enriched[i] = { ...ch, flashcards: data.flashcards };
+      } catch { /* keep chapter without flashcards on failure */ }
+    }
+
+    setSaveProgress("Saving…");
+    const newTrack = buildTrack(trackId, title, rawNotes.slice(0, 140), enriched, user.id, "ai-generated", rawNotes);
     saveCustomTrack(user.id, newTrack);
     router.push(`/cs-journey/${trackId}`);
   }
@@ -283,19 +310,30 @@ export default function NewSubjectPage() {
               {chapters ? `${chapters.length} chapters — edit before saving` : "Structured preview"}
             </span>
             {chapters && (
-              <button
-                onClick={handleSave}
-                style={{
-                  fontFamily: SERIF, fontSize: "0.8rem", fontStyle: "italic", fontWeight: 700,
-                  color: "#fffdf8",
-                  background: "linear-gradient(135deg, #f59e0b, #d97706)",
-                  border: "none", borderRadius: 50, padding: "6px 16px",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(245,158,11,0.35)",
-                }}
-              >
-                Save subject →
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontFamily: SERIF, fontSize: "0.8rem", fontStyle: "italic", fontWeight: 700,
+                    color: "#fffdf8",
+                    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                    border: "none", borderRadius: 50, padding: "6px 16px",
+                    cursor: saving ? "default" : "pointer",
+                    opacity: saving ? 0.7 : 1,
+                    boxShadow: "0 4px 12px rgba(245,158,11,0.35)",
+                  }}
+                >
+                  {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {saving ? "Saving…" : "Save subject →"}
+                </button>
+                {saveProgress && (
+                  <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.68rem", color: "rgba(146,64,14,0.65)", maxWidth: 200, textAlign: "right" }}>
+                    {saveProgress}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 

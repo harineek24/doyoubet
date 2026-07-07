@@ -248,7 +248,7 @@ export default function TrackJourneyPage() {
       {doorChapter && (
         <DoorAnimation
           chapter={doorChapter}
-          onDone={() => router.replace(`/cs-journey/${trackId}/roadmap`)}
+          onDone={() => router.replace(`/cs-journey/${trackId}/${doorChapter.id}`)}
         />
       )}
     </>
