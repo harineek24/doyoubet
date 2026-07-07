@@ -221,17 +221,29 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
                   >
                     {/* Front — question only */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: 18, background: `linear-gradient(145deg, ${ch.g1}, ${ch.g2})`, border: `1px solid ${ch.accent}33`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", textAlign: "center", minHeight: 220 }}>
-                      <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 1rem" }}>
-                        {idx + 1} of {cards.length} · tap to reveal
-                      </p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                        <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: 0 }}>
+                          {idx + 1} of {cards.length} · tap to reveal
+                        </p>
+                        {card?.repeat && (
+                          <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.58rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#fffdf8", background: "rgba(0,0,0,0.22)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 20, padding: "2px 8px" }}>
+                            Revisit
+                          </span>
+                        )}
+                      </div>
                       <p style={{ fontFamily: SERIF, fontSize: "clamp(1.1rem, 2.5vw, 1.45rem)", fontWeight: 700, color: "#1c1008", lineHeight: 1.4, margin: 0 }}>
                         {card?.question}
                       </p>
                     </div>
-                    {/* Back — question + answer */}
-                    <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "2rem", minHeight: 220, overflowY: "auto" }}>
-                      <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.6rem" }}>{card?.question}</p>
+                    {/* Back — question + answer + optional code */}
+                    <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "1.75rem 2rem", minHeight: 220, overflowY: "auto" }}>
+                      <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.55rem" }}>{card?.question}</p>
                       <p style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7, margin: 0 }}>{card?.answer}</p>
+                      {card?.code && (
+                        <pre style={{ marginTop: "0.9rem", background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap" }}>
+                          {card.code}
+                        </pre>
+                      )}
                     </div>
                   </motion.div>
                 </div>
@@ -250,9 +262,17 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
             {cards.length === 0
               ? <p style={{ fontStyle: "italic", opacity: 0.35 }}>No notes yet.</p>
               : cards.map((c, i) => (
-                  <div key={c.id} style={{ marginBottom: "1.75rem", paddingBottom: "1.75rem", borderBottom: i < cards.length - 1 ? "1px solid rgba(245,158,11,0.1)" : "none" }}>
-                    <p style={{ fontWeight: 700, color: "rgba(254,249,231,0.95)", margin: "0 0 0.45rem", fontSize: "0.98rem" }}>{c.question}</p>
-                    <p style={{ margin: 0, color: "rgba(245,158,11,0.72)" }}>{c.answer}</p>
+                  <div key={c.id} style={{ marginBottom: "2rem", paddingBottom: "2rem", borderBottom: i < cards.length - 1 ? "1px solid rgba(245,158,11,0.08)" : "none" }}>
+                    {/* Section heading — the concept, not "what is X?" framing */}
+                    <h3 style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "1.05rem", color: "rgba(254,249,231,0.92)", margin: "0 0 0.5rem", lineHeight: 1.3 }}>
+                      {c.question.replace(/^(What (is|are|does)|How (does|do|is)|Why (is|does)|Explain|Describe)\s+/i, "").replace(/\?$/, "")}
+                    </h3>
+                    <p style={{ margin: 0, color: "rgba(245,158,11,0.70)", lineHeight: 1.8, fontSize: "0.93rem" }}>{c.answer}</p>
+                    {c.code && (
+                      <pre style={{ marginTop: "0.75rem", background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap" }}>
+                        {c.code}
+                      </pre>
+                    )}
                   </div>
                 ))
             }

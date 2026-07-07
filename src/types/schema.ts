@@ -113,6 +113,8 @@ export interface Flashcard {
   id: string;
   question: string;
   answer: string;
+  code?: string;
+  repeat?: boolean;
 }
 
 export interface TrackChapter {

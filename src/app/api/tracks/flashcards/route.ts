@@ -4,11 +4,17 @@ import type { Flashcard } from "@/types/schema";
 
 const SYSTEM_PROMPT = `You generate flashcards for one chapter of a self-paced course.
 Respond with ONLY a valid JSON array — start with [ end with ] — no prose, no code fences.
-Produce 4 to 6 flashcard objects. Each has:
-"question" (one clear, specific, testable question) and "answer" (2-4 sentences that fully answer it).
+Produce 5 to 7 flashcard objects that together cover ALL key topics of the chapter — breadth across every important concept matters.
+Each object has:
+- "question": one clear, specific, testable question (the memory-test side)
+- "answer": 2-4 sentences that fully explain the concept — the answer must ADD information, not just restate the question
+- "code": optional — a short runnable snippet ≤8 lines when seeing real syntax genuinely helps; omit entirely for pure theory questions
+- "repeat": true if this card revisits a concept already covered earlier in the set (for spaced repetition), omit otherwise
+
+Repeating key concepts across cards is encouraged for memorization — just mark them with repeat:true.
 Output ONLY the JSON array.`;
 
-function parseJson(text: string): { question: string; answer: string }[] | null {
+function parseJson(text: string): { question: string; answer: string; code?: string; repeat?: boolean }[] | null {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   try { const d = JSON.parse(cleaned); if (Array.isArray(d)) return d; } catch { /* */ }
   const start = cleaned.indexOf("[");
@@ -61,6 +67,8 @@ export async function POST(req: NextRequest) {
     id: uid(),
     question: f.question ?? "",
     answer: f.answer ?? "",
+    ...(f.code ? { code: f.code } : {}),
+    ...(f.repeat ? { repeat: true } : {}),
   }));
 
   return NextResponse.json({ flashcards });
