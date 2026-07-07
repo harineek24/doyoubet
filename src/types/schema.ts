@@ -105,3 +105,40 @@ export interface RunResult {
   stderr: string;
   exitCode: number;
 }
+
+// A Track is a self-contained mini-curriculum within the CS domain
+// (e.g. "Python for AI"). Distinct from `Subject` above, which is the
+// broad onboarding-level domain choice.
+export interface Flashcard {
+  id: string;
+  question: string;
+  answer: string;
+  code?: string;
+}
+
+export interface TrackChapter {
+  id: string;
+  num: string;
+  title: string;
+  sub: string;
+  desc: string;
+  tags: string[];
+  accent: string;
+  g1: string;
+  g2: string;
+  g3: string;
+  body?: string;
+  flashcards?: Flashcard[];
+}
+
+export interface Track {
+  id: string;
+  title: string;
+  tagline: string;
+  accentColor: string;
+  source: "builtin" | "ai-generated";
+  ownerId: string | null;
+  rawNotes: string | null;
+  createdAt: string;
+  chapters: TrackChapter[];
+}

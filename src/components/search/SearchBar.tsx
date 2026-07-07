@@ -111,7 +111,7 @@ export function SearchBar({ tenantId }: { tenantId: string }) {
 
             {!webConfigured && (
               <p className="border-t border-border-glass px-3 py-2 text-[10px] text-foreground/30">
-                Connect Google Custom Search to see results from the web.
+                Add a Tavily API key to see results from the web.
               </p>
             )}
           </motion.div>

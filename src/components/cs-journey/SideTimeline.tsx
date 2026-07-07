@@ -1,13 +1,14 @@
 "use client";
 
-import { JOURNEY } from "./journeyData";
+import type { TrackChapter } from "@/types/schema";
 
 interface Props {
+  chapters: TrackChapter[];
   activeId: number;
   onJump: (id: number) => void;
 }
 
-export default function SideTimeline({ activeId, onJump }: Props) {
+export default function SideTimeline({ chapters, activeId, onJump }: Props) {
   return (
     <div
       style={{
@@ -82,21 +83,21 @@ export default function SideTimeline({ activeId, onJump }: Props) {
               left: 6,
               top: 10,
               width: 1.5,
-              height: `${(activeId / (JOURNEY.length - 1)) * 100}%`,
+              height: `${(activeId / (chapters.length - 1)) * 100}%`,
               background: "#f59e0b",
               opacity: 0.75,
               transition: "height 0.6s ease",
             }}
           />
 
-          {JOURNEY.map((ch) => {
-            const isActive = ch.id === activeId;
-            const isDone   = ch.id < activeId;
+          {chapters.map((ch, i) => {
+            const isActive = i === activeId;
+            const isDone   = i < activeId;
 
             return (
               <button
                 key={ch.id}
-                onClick={() => onJump(ch.id)}
+                onClick={() => onJump(i)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -173,7 +174,7 @@ export default function SideTimeline({ activeId, onJump }: Props) {
             fontWeight: 600,
           }}
         >
-          {String(activeId + 1).padStart(2, "0")} / {String(JOURNEY.length).padStart(2, "0")}
+          {String(activeId + 1).padStart(2, "0")} / {String(chapters.length).padStart(2, "0")}
         </span>
       </div>
     </div>
