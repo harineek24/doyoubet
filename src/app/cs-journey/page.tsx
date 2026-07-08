@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Link2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllTracks, deleteCustomTrack } from "@/lib/repo";
 import type { Track } from "@/types/schema";
@@ -19,9 +19,45 @@ export default function CSJourneyPickerPage() {
   const [deleteTarget, setDeleteTarget] = useState<Track | null>(null);
   const [deleteInput, setDeleteInput]   = useState("");
 
+  // Share modal
+  const [shareTarget, setShareTarget]   = useState<Track | null>(null);
+  const [shareUrl, setShareUrl]         = useState<string | null>(null);
+  const [shareEmail, setShareEmail]     = useState("");
+  const [sharing, setSharing]           = useState(false);
+  const [copied, setCopied]             = useState(false);
+
   useEffect(() => {
     if (user) setTracks(getAllTracks(user.id));
   }, [user]);
+
+  async function openShare(t: Track) {
+    setShareTarget(t); setShareUrl(null); setShareEmail(""); setCopied(false);
+    setSharing(true);
+    try {
+      const res = await fetch("/api/tracks/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId: t.id, title: t.title, tagline: t.tagline, chapters: t.chapters }),
+      });
+      const d = await res.json();
+      if (d.shareUrl) setShareUrl(d.shareUrl);
+    } catch { /* leave shareUrl null */ }
+    setSharing(false);
+  }
+
+  function copyLink() {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function openGmail() {
+    if (!shareUrl) return;
+    const subject = encodeURIComponent(`Join my DevQuest subject: ${shareTarget?.title}`);
+    const body = encodeURIComponent(`Hey! I'm inviting you to study "${shareTarget?.title}" with me on DevQuest.\n\nClick the link below to add it to your library:\n\n${shareUrl}\n\nSee you there!`);
+    window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(shareEmail)}&su=${subject}&body=${body}`, "_blank");
+  }
 
   function handleDeleteConfirm() {
     if (!user || !deleteTarget || deleteInput !== "delete") return;
@@ -123,20 +159,24 @@ export default function CSJourneyPickerPage() {
               </p>
             </button>
 
-            {/* Delete button — only on ai-generated tracks */}
+            {/* Share + Delete buttons — only on ai-generated tracks */}
             {t.source === "ai-generated" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); setDeleteInput(""); }}
-                style={{
-                  position: "absolute", top: 10, right: 10,
-                  background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.18)",
-                  borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center",
-                  color: "rgba(220,38,38,0.55)",
-                }}
-                title="Delete subject"
-              >
-                <Trash2 size={13} />
-              </button>
+              <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 5 }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); openShare(t); }}
+                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(146,64,14,0.6)" }}
+                  title="Share subject"
+                >
+                  <Link2 size={13} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); setDeleteInput(""); }}
+                  style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(220,38,38,0.55)" }}
+                  title="Delete subject"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             )}
           </motion.div>
         ))}
@@ -191,6 +231,48 @@ export default function CSJourneyPickerPage() {
               >
                 Delete
               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Share modal */}
+      {shareTarget && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.72)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.18 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 440, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.45)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 0.3rem" }}>
+              Share &ldquo;{shareTarget.title}&rdquo;
+            </h2>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "#5c3d2e", margin: "0 0 1.2rem", lineHeight: 1.5 }}>
+              Anyone with the link can add this subject to their own library.
+            </p>
+
+            {sharing ? (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "rgba(245,158,11,0.6)", marginBottom: "1rem" }}>Generating link…</p>
+            ) : shareUrl ? (
+              <>
+                <div style={{ display: "flex", gap: 8, marginBottom: "1.2rem", alignItems: "center" }}>
+                  <input readOnly value={shareUrl} style={{ flex: 1, fontFamily: MONO, fontSize: "0.72rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+                  <button onClick={copyLink} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: copied ? "#16a34a" : "#92400e", background: copied ? "rgba(22,163,74,0.08)" : "rgba(245,158,11,0.1)", border: `1px solid ${copied ? "rgba(22,163,74,0.25)" : "rgba(245,158,11,0.25)"}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" }}>
+                    <Copy size={12} /> {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+
+                <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.3rem" }}>Send via Gmail (optional)</label>
+                <div style={{ display: "flex", gap: 8, marginBottom: "1.3rem" }}>
+                  <input value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} type="email" placeholder="friend@gmail.com" style={{ flex: 1, fontFamily: SERIF, fontSize: "0.88rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+                  <button onClick={openGmail} disabled={!shareEmail.trim()} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.82rem", color: "#fffdf8", background: shareEmail.trim() ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 10, padding: "6px 14px", cursor: shareEmail.trim() ? "pointer" : "default", whiteSpace: "nowrap" }}>
+                    Open Gmail
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "rgba(220,38,38,0.6)", marginBottom: "1rem" }}>Could not generate link. Make sure you&rsquo;re signed in.</p>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => setShareTarget(null)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Close</button>
             </div>
           </motion.div>
         </div>
