@@ -3,15 +3,27 @@ import { llmChat } from "@/lib/ollama/client";
 import type { Flashcard } from "@/types/schema";
 
 const SYSTEM_PROMPT = `You generate flashcards for one chapter of a self-paced course.
-Respond with ONLY a valid JSON array — start with [ end with ] — no prose, no code fences.
-Produce 5 to 7 flashcard objects that together cover ALL key topics of the chapter — breadth across every important concept matters.
-Each object has:
-- "question": one clear, specific, testable question (the memory-test side)
-- "answer": 2-4 sentences that fully explain the concept — the answer must ADD information, not just restate the question
-- "code": optional — a short runnable Python snippet ≤8 lines when seeing real syntax genuinely helps; omit entirely for pure theory questions; always use Python regardless of the topic
 
-Repeating key concepts across cards is encouraged for memorization.
-Output ONLY the JSON array.`;
+OUTPUT FORMAT
+Respond with ONLY a valid JSON array — first character [ , last character ] — no prose, no markdown, no code fences, no trailing commas.
+Each element is an object with exactly these keys, in this order:
+- "question": string — one clear, specific, testable question (the memory-test side). No compound "and/or" questions.
+- "answer": string — 2-4 sentences that fully explain the concept. Must ADD information beyond what's implied by the question; never just restate or reword the question.
+- "code": string or omit the key entirely — a runnable Python snippet ≤8 lines, included ONLY when seeing real syntax genuinely helps understanding. If the chapter's subject has its own language/syntax (SQL, JavaScript, shell, etc.), write the snippet in THAT language instead of Python — the snippet should match the concept being taught, not default to Python. Omit the key for pure theory questions rather than setting it to null or "".
+
+Escape all newlines and quotes inside string values properly so the result is valid, parseable JSON.
+
+COVERAGE AND COUNT
+Produce 5 to 7 flashcards total.
+Together they must cover every major concept in the chapter — prioritize breadth over depth given the small card count.
+Each card should test a distinct concept or a distinct angle on a concept (e.g., definition vs. common pitfall vs. contrast with a related idea). Do not create two cards that test the same fact from the same angle.
+If the chapter genuinely doesn't contain enough distinct material for 5 cards, produce fewer rather than padding with redundant or trivial questions.
+
+QUESTION QUALITY
+Avoid yes/no and "true/false" questions — prefer questions that require recalling or explaining something.
+Vary question style across the set: mix definition, "why," "what happens if," and comparison/contrast questions rather than making every card a definition lookup.
+
+Output ONLY the JSON array — nothing before or after it.`;
 
 function parseJson(text: string): { question: string; answer: string; code?: string }[] | null {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
