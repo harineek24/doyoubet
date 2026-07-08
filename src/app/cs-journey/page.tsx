@@ -25,13 +25,14 @@ export default function CSJourneyPickerPage() {
   const [shareEmail, setShareEmail]     = useState("");
   const [sharing, setSharing]           = useState(false);
   const [copied, setCopied]             = useState(false);
+  const [shareError, setShareError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (user) setTracks(getAllTracks(user.id));
   }, [user]);
 
   async function openShare(t: Track) {
-    setShareTarget(t); setShareUrl(null); setShareEmail(""); setCopied(false);
+    setShareTarget(t); setShareUrl(null); setShareEmail(""); setCopied(false); setShareError(null);
     setSharing(true);
     try {
       const res = await fetch("/api/tracks/share", {
@@ -41,7 +42,10 @@ export default function CSJourneyPickerPage() {
       });
       const d = await res.json();
       if (d.shareUrl) setShareUrl(d.shareUrl);
-    } catch { /* leave shareUrl null */ }
+      else setShareError(d.error ?? `Server error ${res.status}`);
+    } catch (e) {
+      setShareError(e instanceof Error ? e.message : "Network error");
+    }
     setSharing(false);
   }
 
@@ -271,9 +275,11 @@ export default function CSJourneyPickerPage() {
                   </button>
                 </div>
               </>
-            ) : (
-              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "rgba(220,38,38,0.6)", marginBottom: "1rem" }}>Could not generate link. Make sure you&rsquo;re signed in.</p>
-            )}
+            ) : shareError ? (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.85rem", color: "rgba(220,38,38,0.65)", marginBottom: "1rem", lineHeight: 1.5 }}>
+                Error: {shareError}
+              </p>
+            ) : null}
 
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button onClick={() => setShareTarget(null)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Close</button>
