@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ExternalLink, GitBranch } from "lucide-react";
+import { Loader2, ExternalLink, GitBranch, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTrack } from "@/lib/repo";
+import { getTrack, getChapterFlashcards, saveChapterFlashcards } from "@/lib/repo";
 import { pushFile, ensureRepo } from "@/lib/github";
 import { getGithubConnection } from "@/lib/githubConnection";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -39,6 +39,7 @@ export default function ChapterStudyPage() {
     <ChapterView
       chapter={chapter}
       trackId={trackId}
+      chapterId={chapterId}
       chapterIndex={track.chapters.findIndex((c) => c.id === chapterId)}
       totalChapters={track.chapters.length}
       prevId={track.chapters[track.chapters.findIndex((c) => c.id === chapterId) - 1]?.id}
@@ -47,9 +48,10 @@ export default function ChapterStudyPage() {
   );
 }
 
-function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId, nextId }: {
+function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapters, prevId, nextId }: {
   chapter: TrackChapter;
   trackId: string;
+  chapterId: string;
   chapterIndex: number;
   totalChapters: number;
   prevId?: string;
@@ -58,12 +60,26 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
   const { user } = useAuth();
   const router   = useRouter();
 
-  const cards: Flashcard[] = ch.flashcards ?? [];
+  // Merge AI-generated flashcards with any user-saved overrides from localStorage
+  const [cards, setCards] = useState<Flashcard[]>(() => {
+    if (typeof window === "undefined") return ch.flashcards ?? [];
+    const saved = getChapterFlashcards(trackId, chapterId);
+    return saved.length > 0 ? saved : (ch.flashcards ?? []);
+  });
 
   const [idx, setIdx]     = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [tab, setTab]     = useState<"cards" | "notes" | "practice">("cards");
   const [entering, setEntering] = useState(true);
+
+  // Add card form
+  const [addOpen, setAddOpen]       = useState(false);
+  const [newQ, setNewQ]             = useState("");
+  const [newA, setNewA]             = useState("");
+
+  // Delete card confirmation
+  const [deleteCard, setDeleteCard]   = useState<Flashcard | null>(null);
+  const [deleteInput, setDeleteInput] = useState("");
 
   // Practice
   const [problems, setProblems]               = useState<CFProblem[]>([]);
@@ -93,6 +109,29 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
   const card = cards[idx];
   function next() { setIdx((i) => Math.min(i + 1, cards.length - 1)); setFlipped(false); }
   function prev() { setIdx((i) => Math.max(i - 1, 0)); setFlipped(false); }
+
+  function persistCards(updated: Flashcard[]) {
+    setCards(updated);
+    saveChapterFlashcards(trackId, chapterId, updated);
+  }
+
+  function addCard() {
+    if (!newQ.trim() || !newA.trim()) return;
+    const fresh: Flashcard = { id: Math.random().toString(36).slice(2, 10), question: newQ.trim(), answer: newA.trim() };
+    persistCards([...cards, fresh]);
+    setIdx(cards.length);
+    setFlipped(false);
+    setNewQ(""); setNewA(""); setAddOpen(false);
+  }
+
+  function confirmDeleteCard() {
+    if (!deleteCard || deleteInput !== "delete") return;
+    const updated = cards.filter((c) => c.id !== deleteCard.id);
+    persistCards(updated);
+    setIdx((i) => Math.min(i, Math.max(0, updated.length - 1)));
+    setFlipped(false);
+    setDeleteCard(null); setDeleteInput("");
+  }
 
   async function runCode() {
     setRunning(true); setRunOutput(null);
@@ -208,18 +247,20 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
 
         {/* ── Flashcards ── */}
         {tab === "cards" && (
-          cards.length === 0
-            ? <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.9rem", color: "rgba(245,158,11,0.3)", textAlign: "center", paddingTop: "3rem" }}>
-                No flashcards — regenerate this subject in the builder to create them from your notes.
+          <div style={{ maxWidth: 580, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: "1.4rem" }}>
+            {cards.length === 0 ? (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.9rem", color: "rgba(245,158,11,0.3)", textAlign: "center", paddingTop: "3rem" }}>
+                No flashcards yet — add your own below or regenerate this subject in the builder.
               </p>
-            : <div style={{ maxWidth: 580, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: "1.4rem" }}>
+            ) : (
+              <>
                 <div onClick={() => setFlipped((f) => !f)} style={{ width: "100%", minHeight: 220, perspective: 1000, cursor: "pointer" }}>
                   <motion.div
                     animate={{ rotateY: flipped ? 180 : 0 }}
                     transition={{ duration: 0.45, ease: "easeInOut" }}
                     style={{ position: "relative", width: "100%", minHeight: 220, transformStyle: "preserve-3d" }}
                   >
-                    {/* Front — question only */}
+                    {/* Front */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: 18, background: `linear-gradient(145deg, ${ch.g1}, ${ch.g2})`, border: `1px solid ${ch.accent}33`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", textAlign: "center", minHeight: 220 }}>
                       <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 1rem" }}>
                         {idx + 1} of {cards.length} · tap to reveal
@@ -228,7 +269,7 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
                         {card?.question}
                       </p>
                     </div>
-                    {/* Back — question + answer + optional code */}
+                    {/* Back */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "1.75rem 2rem", minHeight: 220, overflowY: "auto" }}>
                       <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.55rem" }}>{card?.question}</p>
                       <p style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7, margin: 0 }}>{card?.answer}</p>
@@ -246,7 +287,25 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
                   <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(245,158,11,0.35)" }}>{idx + 1} / {cards.length}</span>
                   <button onClick={next} disabled={idx === cards.length - 1} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent, background: "none", border: `1px solid ${ch.accent}44`, borderRadius: 20, padding: "6px 18px", cursor: idx === cards.length - 1 ? "default" : "pointer", opacity: idx === cards.length - 1 ? 0.3 : 1 }}>Next →</button>
                 </div>
-              </div>
+
+                {/* Delete current card */}
+                <button
+                  onClick={() => { setDeleteCard(card ?? null); setDeleteInput(""); }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(220,38,38,0.45)", background: "none", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}
+                >
+                  <Trash2 size={11} /> Delete this card
+                </button>
+              </>
+            )}
+
+            {/* Add card button */}
+            <button
+              onClick={() => { setAddOpen(true); setNewQ(""); setNewA(""); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.82rem", color: ch.accent, background: `${ch.accent}12`, border: `1px solid ${ch.accent}33`, borderRadius: 20, padding: "7px 20px", cursor: "pointer", marginTop: cards.length === 0 ? 0 : "0.4rem" }}
+            >
+              <Plus size={13} /> Add flashcard
+            </button>
+          </div>
         )}
 
         {/* ── Notes ── */}
@@ -333,6 +392,65 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
           </div>
         )}
       </div>
+
+      {/* ── Add flashcard modal ── */}
+      {addOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.78)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 460, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 1.2rem" }}>Add a flashcard</h2>
+            <label style={{ fontFamily: SERIF, fontSize: "0.78rem", color: "#5c3d2e", display: "block", marginBottom: "0.3rem" }}>Question</label>
+            <textarea
+              autoFocus
+              value={newQ}
+              onChange={(e) => setNewQ(e.target.value)}
+              rows={2}
+              placeholder="e.g. What is memoization?"
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.92rem", padding: "0.55rem 0.85rem", borderRadius: 10, border: `1.5px solid ${ch.accent}44`, background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical", marginBottom: "0.9rem" }}
+            />
+            <label style={{ fontFamily: SERIF, fontSize: "0.78rem", color: "#5c3d2e", display: "block", marginBottom: "0.3rem" }}>Answer</label>
+            <textarea
+              value={newA}
+              onChange={(e) => setNewA(e.target.value)}
+              rows={4}
+              placeholder="Explain the concept clearly…"
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.92rem", padding: "0.55rem 0.85rem", borderRadius: 10, border: `1.5px solid ${ch.accent}44`, background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical", marginBottom: "1.2rem" }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setAddOpen(false)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={addCard} disabled={!newQ.trim() || !newA.trim()} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: newQ.trim() && newA.trim() ? `linear-gradient(135deg, ${ch.accent}, #d97706)` : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: newQ.trim() && newA.trim() ? "pointer" : "default", transition: "background 0.15s" }}>Save card</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Delete flashcard confirmation modal ── */}
+      {deleteCard && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.78)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 400, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 0.4rem" }}>Delete this card?</h2>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.85rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 0.5rem" }}>
+              &ldquo;{deleteCard.question.slice(0, 80)}{deleteCard.question.length > 80 ? "…" : ""}&rdquo;
+            </p>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 1rem" }}>
+              Type <strong>delete</strong> to confirm.
+            </p>
+            <input
+              autoFocus
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmDeleteCard(); if (e.key === "Escape") { setDeleteCard(null); setDeleteInput(""); } }}
+              placeholder="delete"
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: "0.9rem", padding: "0.6rem 0.9rem", borderRadius: 10, border: "1.5px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.04)", color: "#1c1008", outline: "none", marginBottom: "1.1rem" }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setDeleteCard(null); setDeleteInput(""); }} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteCard} disabled={deleteInput !== "delete"} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: deleteInput === "delete" ? "linear-gradient(135deg, #dc2626, #b91c1c)" : "rgba(220,38,38,0.25)", border: "none", borderRadius: 50, padding: "8px 20px", cursor: deleteInput === "delete" ? "pointer" : "default", transition: "background 0.15s" }}>Delete</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
