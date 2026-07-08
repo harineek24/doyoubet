@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { saveCustomTrack } from "@/lib/repo";
+import { saveCustomTrack, saveChapterFlashcards } from "@/lib/repo";
 import { buildTrack } from "@/lib/store/tracks";
 import type { TrackChapter } from "@/types/schema";
 
@@ -33,16 +33,15 @@ export default function JoinTrackPage() {
 
   function addToLibrary() {
     if (!user || !shared) return;
-    const track = buildTrack(
-      `shared-${token.slice(0, 8)}`,
-      shared.title,
-      shared.tagline,
-      shared.chapters,
-      user.id,
-      "ai-generated",
-      null
-    );
+    const trackId = `shared-${token.slice(0, 8)}`;
+    const track = buildTrack(trackId, shared.title, shared.tagline, shared.chapters, user.id, "ai-generated", null);
     saveCustomTrack(user.id, track);
+    // Persist flashcards per chapter so the study page finds them immediately
+    for (const ch of shared.chapters) {
+      if (ch.flashcards?.length) {
+        saveChapterFlashcards(trackId, ch.id, ch.flashcards);
+      }
+    }
     setAdded(true);
     setTimeout(() => router.push("/cs-journey"), 1200);
   }
