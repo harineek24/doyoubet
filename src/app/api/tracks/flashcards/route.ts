@@ -8,7 +8,7 @@ Produce 5 to 7 flashcard objects that together cover ALL key topics of the chapt
 Each object has:
 - "question": one clear, specific, testable question (the memory-test side)
 - "answer": 2-4 sentences that fully explain the concept — the answer must ADD information, not just restate the question
-- "code": optional — a short runnable snippet ≤8 lines when seeing real syntax genuinely helps; omit entirely for pure theory questions
+- "code": optional — a short runnable Python snippet ≤8 lines when seeing real syntax genuinely helps; omit entirely for pure theory questions; always use Python regardless of the topic
 
 Repeating key concepts across cards is encouraged for memorization.
 Output ONLY the JSON array.`;
