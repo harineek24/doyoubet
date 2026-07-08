@@ -26,7 +26,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   isDemoMode: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (joinToken?: string) => Promise<void>;
   connectGithub: () => Promise<void>;
   signInDemo: () => void;
   signOut: () => Promise<void>;
@@ -96,11 +96,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (joinToken?: string) => {
     if (!supabase) return;
+    const redirect = joinToken
+      ? `${window.location.origin}/onboarding?join=${joinToken}`
+      : `${window.location.origin}/onboarding`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/onboarding` },
+      options: { redirectTo: redirect },
     });
   }, [supabase]);
 

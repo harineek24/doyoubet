@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Compass, Dice5, Code2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPreferences, getTenants, savePreferences } from "@/lib/repo";
@@ -16,6 +16,8 @@ const SUBJECTS: { value: Subject; label: string }[] = [
 export default function OnboardingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const joinToken = searchParams.get("join");
   const [domain, setDomain] = useState<Domain>("generic");
   const [subject, setSubject] = useState<Subject>(SUBJECTS[0].value);
   const [learningStyle, setLearningStyle] = useState<LearningStyle>("spontaneous");
@@ -51,12 +53,7 @@ export default function OnboardingPage() {
       updatedAt: new Date().toISOString(),
     });
     getTenants(user!.id);
-    const joinRedirect = localStorage.getItem("devquest_join_redirect");
-    if (joinRedirect) {
-      localStorage.removeItem("devquest_join_redirect");
-      router.replace(joinRedirect);
-      return;
-    }
+    if (joinToken) { router.replace(`/cs-journey/join/${joinToken}`); return; }
     router.replace("/cs-intro");
   }
 
