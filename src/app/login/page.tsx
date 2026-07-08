@@ -13,8 +13,8 @@ function LoginInner() {
   const joinToken = searchParams.get("join") ?? undefined;
 
   useEffect(() => {
-    if (!loading && user) router.replace("/onboarding");
-  }, [loading, user, router]);
+    if (!loading && user) router.replace(joinToken ? `/onboarding?join=${joinToken}` : "/onboarding");
+  }, [loading, user, router, joinToken]);
 
   return (
     <main className="flex min-h-screen flex-1 items-center justify-center px-6">
