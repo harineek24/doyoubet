@@ -4,7 +4,14 @@ import type { TrackChapter } from "@/types/schema";
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServerClient();
-  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  if (!supabase) return NextResponse.json({
+    error: "Supabase not configured",
+    debug: {
+      hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+      urlPrefix: process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 20) ?? "missing",
+    }
+  }, { status: 503 });
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
