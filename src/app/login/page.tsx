@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function LoginPage() {
+function LoginInner() {
   const { user, loading, isDemoMode, signInWithGoogle, signInDemo } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,4 +58,8 @@ export default function LoginPage() {
       </motion.div>
     </main>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense><LoginInner /></Suspense>;
 }
