@@ -405,7 +405,7 @@ function DoorAnimation({ chapter: ch, onDone }: { chapter: TrackChapter; onDone:
               textShadow: "0 1px 6px rgba(255,255,255,0.9)",
               position: "relative", zIndex: 1,
             }}>
-              ROADMAP
+              Ready?
             </div>
             <div style={{
               position: "relative", zIndex: 1,

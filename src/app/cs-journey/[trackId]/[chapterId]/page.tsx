@@ -190,10 +190,10 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
       {/* Top bar */}
       <div style={{ flexShrink: 0, padding: "1rem 1.75rem", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(245,158,11,0.10)" }}>
         <button
-          onClick={() => router.replace(`/cs-journey/${trackId}/roadmap`)}
+          onClick={() => router.replace(`/cs-journey`)}
           style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(245,158,11,0.5)", background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
         >
-          Ready?
+          ← Back
         </button>
 
         <div style={{ textAlign: "center", flex: 1, padding: "0 1rem" }}>
