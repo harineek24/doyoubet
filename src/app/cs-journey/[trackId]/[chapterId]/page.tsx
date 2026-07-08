@@ -96,27 +96,14 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   // Reset flip/idx when chapter changes
   useEffect(() => { setIdx(0); setFlipped(false); }, [ch.id]);
 
-  function looksLikeCode(text: string): boolean {
-    return /\bdef \w+\s*\(|\bclass \w+|\breturn\b|\bfor \w+ in |\bwhile \w|\bif \w.*:|->\s*(bool|int|str|float|list|dict|None)|\.lower\(\)|\.upper\(\)|\.append\(/.test(text);
-  }
-
   function renderQuestion(text: string) {
-    if (!looksLikeCode(text)) {
+    const isCode = text.includes("\n") || /\bdef \w+\s*\(|\bclass \w+|->\s*(bool|int|str|float|list|dict|None)|\.lower\(\)|\.upper\(\)|\.append\(/.test(text);
+    if (!isCode) {
       return <p style={{ fontFamily: SERIF, fontSize: "clamp(1.1rem, 2.5vw, 1.45rem)", fontWeight: 700, color: "#1c1008", lineHeight: 1.4, margin: 0 }}>{text}</p>;
     }
-    // Reconstruct likely line breaks for squashed Python code
-    const formatted = text
-      .replace(/(\bdef \w+[^:]+:)\s*/g, "$1\n  ")
-      .replace(/\s+(return\b)/g, "\n  $1")
-      .replace(/\s+(if\b)/g, "\n  $1")
-      .replace(/\s+(elif\b)/g, "\n  $1")
-      .replace(/\s+(else:)/g, "\n  $1")
-      .replace(/\s+(for\b)/g, "\n  $1")
-      .replace(/\s+(while\b)/g, "\n  $1")
-      .replace(/\s+(left \+=|right -=|left,|right =)/g, "\n  $1");
     return (
-      <pre style={{ fontFamily: MONO, fontSize: "clamp(0.72rem, 1.6vw, 0.88rem)", color: "#1c1008", background: "rgba(0,0,0,0.08)", borderRadius: 10, padding: "0.75rem 1rem", margin: 0, whiteSpace: "pre-wrap", textAlign: "left", lineHeight: 1.6, width: "100%" }}>
-        {formatted}
+      <pre style={{ fontFamily: MONO, fontSize: "clamp(0.72rem, 1.6vw, 0.85rem)", color: "#1c1008", background: "rgba(0,0,0,0.08)", borderRadius: 10, padding: "0.75rem 1rem", margin: 0, whiteSpace: "pre-wrap", textAlign: "left", lineHeight: 1.6, width: "100%", overflowX: "auto" }}>
+        {text}
       </pre>
     );
   }
