@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Copy, Link2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllTracks, deleteCustomTrack, hideBuiltinTrack } from "@/lib/repo";
+import { getAllTracks, deleteCustomTrack, hideBuiltinTrack, getChapterFlashcards } from "@/lib/repo";
 import type { Track } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
@@ -35,10 +35,17 @@ export default function CSJourneyPickerPage() {
     setShareTarget(t); setShareUrl(null); setShareEmail(""); setCopied(false); setShareError(null);
     setSharing(true);
     try {
+      // Hydrate flashcards from localStorage cache (needed for builtin tracks where
+      // flashcards live in the cache, not embedded in ch.flashcards)
+      const chapters = t.chapters.map((ch) => {
+        const cached = getChapterFlashcards(t.id, ch.id);
+        const flashcards = (ch.flashcards?.length ? ch.flashcards : cached);
+        return { ...ch, flashcards: flashcards.length ? flashcards : undefined };
+      });
       const res = await fetch("/api/tracks/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trackId: t.id, title: t.title, tagline: t.tagline, chapters: t.chapters }),
+        body: JSON.stringify({ trackId: t.id, title: t.title, tagline: t.tagline, chapters }),
       });
       const d = await res.json();
       if (d.shareUrl) setShareUrl(d.shareUrl);
