@@ -154,7 +154,7 @@ function ChapterView({ chapter: ch, trackId, chapterIndex, totalChapters, prevId
           onClick={() => router.replace(`/cs-journey/${trackId}/roadmap`)}
           style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(245,158,11,0.5)", background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
         >
-          ← Roadmap
+          Ready?
         </button>
 
         <div style={{ textAlign: "center", flex: 1, padding: "0 1rem" }}>

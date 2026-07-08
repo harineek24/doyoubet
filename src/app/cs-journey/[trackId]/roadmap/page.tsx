@@ -294,9 +294,17 @@ export default function TrackRoadmapPage() {
               display: "flex", alignItems: "center", justifyContent: "space-between",
               flexWrap: "wrap", gap: "1rem",
             }}>
-              <p style={{ fontFamily: SERIF, fontSize: "0.82rem", fontStyle: "italic", color: "rgba(245,158,11,0.42)", margin: 0, lineHeight: 1.5 }}>
-                {chapters.length} parts · Click any row to read it · Self-paced
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "1.2rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => router.push("/cs-journey")}
+                  style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "rgba(245,158,11,0.42)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  ← All Subjects
+                </button>
+                <p style={{ fontFamily: SERIF, fontSize: "0.82rem", fontStyle: "italic", color: "rgba(245,158,11,0.28)", margin: 0, lineHeight: 1.5 }}>
+                  {chapters.length} parts · Click any row to begin · Self-paced
+                </p>
+              </div>
               <button
                 onClick={() => ctaReady && router.push("/dashboard/study")}
                 style={{
