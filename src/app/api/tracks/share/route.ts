@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
   const { trackId, title, tagline, chapters } = await req.json();
   if (!trackId || !title) return NextResponse.json({ error: "trackId and title required" }, { status: 400 });
 
-  // Strip body and flashcards — recipient regenerates their own
-  const stripped = (chapters as TrackChapter[]).map(({ body: _b, flashcards: _f, ...rest }) => rest);
+  // Strip only body (large raw notes) — keep flashcards so recipient gets them immediately
+  const stripped = (chapters as TrackChapter[]).map(({ body: _b, ...rest }) => rest);
 
   const { data, error } = await supabase
     .from("shared_tracks")
