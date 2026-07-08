@@ -2,13 +2,15 @@
 
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   const { user, loading, isDemoMode, signInWithGoogle, signInDemo } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const joinToken = searchParams.get("join") ?? undefined;
 
   useEffect(() => {
     if (!loading && user) router.replace("/onboarding");
@@ -46,7 +48,7 @@ export default function LoginPage() {
             </>
           ) : (
             <button
-              onClick={signInWithGoogle}
+              onClick={() => signInWithGoogle(joinToken)}
               className="w-full rounded-xl border border-border-glass bg-charcoal px-4 py-3 text-sm font-medium transition hover:bg-charcoal-soft"
             >
               Sign in with Google

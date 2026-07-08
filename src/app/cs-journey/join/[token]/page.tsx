@@ -100,10 +100,7 @@ export default function JoinTrackPage() {
           <div style={{ textAlign: "center" }}>
             <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", marginBottom: "0.8rem" }}>Sign in to add this subject to your library.</p>
             <button
-              onClick={() => {
-                localStorage.setItem("devquest_join_redirect", `/cs-journey/join/${token}`);
-                router.push("/login");
-              }}
+              onClick={() => router.push(`/login?join=${token}`)}
               style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.95rem", color: "#fffdf8", background: "linear-gradient(135deg, #f59e0b, #d97706)", border: "none", borderRadius: 50, padding: "12px 32px", cursor: "pointer", boxShadow: "0 6px 20px rgba(245,158,11,0.35)" }}
             >
               Sign in to continue
