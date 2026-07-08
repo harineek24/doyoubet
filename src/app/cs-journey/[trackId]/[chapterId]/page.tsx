@@ -110,6 +110,34 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   function next() { setIdx((i) => Math.min(i + 1, cards.length - 1)); setFlipped(false); }
   function prev() { setIdx((i) => Math.max(i - 1, 0)); setFlipped(false); }
 
+  function renderAnswer(text: string) {
+    const lines = text.split("\n");
+    const items = lines.filter((l) => /^[-*]\s/.test(l.trim()));
+    if (items.length >= 2) {
+      const parts = text.split(/\n(?=[-*]\s)/);
+      return (
+        <div style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7 }}>
+          {parts.map((part, i) => {
+            if (/^[-*]\s/.test(part.trim())) {
+              const listLines = part.split("\n").filter((l) => /^[-*]\s/.test(l.trim()));
+              const prose = part.split("\n").filter((l) => !/^[-*]\s/.test(l.trim()) && l.trim()).join(" ");
+              return (
+                <span key={i}>
+                  {prose && <span style={{ display: "block", marginBottom: "0.3rem" }}>{prose}</span>}
+                  <ul style={{ margin: "0.3rem 0 0.5rem", paddingLeft: "1.2rem" }}>
+                    {listLines.map((l, j) => <li key={j}>{l.replace(/^[-*]\s+/, "")}</li>)}
+                  </ul>
+                </span>
+              );
+            }
+            return <span key={i} style={{ display: "block" }}>{part.trim()}</span>;
+          })}
+        </div>
+      );
+    }
+    return <p style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7, margin: 0 }}>{text}</p>;
+  }
+
   function persistCards(updated: Flashcard[]) {
     setCards(updated);
     saveChapterFlashcards(trackId, chapterId, updated);
@@ -272,7 +300,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                     {/* Back */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "1.75rem 2rem", minHeight: 220, overflowY: "auto" }}>
                       <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.55rem" }}>{card?.question}</p>
-                      <p style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7, margin: 0 }}>{card?.answer}</p>
+                      {card && renderAnswer(card.answer)}
                       {card?.code && (
                         <pre style={{ marginTop: "0.9rem", background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap" }}>
                           {card.code}
