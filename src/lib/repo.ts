@@ -206,6 +206,11 @@ export function deleteCustomTrack(userId: string, trackId: string): void {
   writeKey(`tracks:${userId}`, existing);
 }
 
+export function saveTrackMeta(userId: string, track: Track): void {
+  const existing = getCustomTracks(userId).filter((t) => t.id !== track.id);
+  writeKey(`tracks:${userId}`, [track, ...existing]);
+}
+
 export interface InternalSearchResult {
   id: string;
   title: string;
