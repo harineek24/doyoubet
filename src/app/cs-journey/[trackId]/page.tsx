@@ -5,11 +5,12 @@ import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Lenis from "lenis";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTrack } from "@/lib/repo";
+import { getTrack, saveTrackMeta } from "@/lib/repo";
 import { JOURNEY } from "@/components/cs-journey/journeyData";
+import { PALETTES } from "@/lib/store/tracks";
 import SideTimeline from "@/components/cs-journey/SideTimeline";
 import React, { forwardRef } from "react";
-import type { TrackChapter } from "@/types/schema";
+import type { Track, TrackChapter } from "@/types/schema";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const VH    = 220;
@@ -52,9 +53,12 @@ export default function TrackJourneyPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const track = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
+  const baseTrack = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
+  const [track, setTrack] = useState<Track | undefined>(baseTrack);
+  useEffect(() => { setTrack(baseTrack); }, [baseTrack]);
   const chapters = track?.chapters ?? [];
   const total = chapters.length;
+  const isEditable = track?.source === "ai-generated";
 
   const spacerRef = useRef<HTMLDivElement>(null);
   const cardRefs  = useRef<(HTMLDivElement | null)[]>([]);
@@ -65,6 +69,37 @@ export default function TrackJourneyPage() {
   const [activeId,    setActiveId]    = useState(0);
   const [bgGrad,      setBgGrad]      = useState("radial-gradient(ellipse 80% 60% at 50% 40%, #fde68a 0%, #fdf8f0 65%)");
   const [doorChapter, setDoorChapter] = useState<TrackChapter | null>(null);
+
+  // Add chapter modal
+  const [addOpen,   setAddOpen]   = useState(false);
+  const [formTitle, setFormTitle] = useState("");
+  const [formSub,   setFormSub]   = useState("");
+  const [formDesc,  setFormDesc]  = useState("");
+  const [formTags,  setFormTags]  = useState("");
+
+  async function saveNewChapter() {
+    if (!track || !user || !formTitle.trim()) return;
+    const tags = formTags.split(",").map((t) => t.trim()).filter(Boolean);
+    const n = track.chapters.length + 1;
+    const p = PALETTES[track.chapters.length % PALETTES.length];
+    const newCh: TrackChapter = {
+      id: `${trackId}-${Date.now()}`,
+      num: String(n).padStart(2, "0"),
+      title: formTitle.trim(), sub: formSub.trim(), desc: formDesc.trim(), tags,
+      ...p,
+    };
+    const updated: Track = { ...track, chapters: [...track.chapters, newCh] };
+    saveTrackMeta(user.id, updated);
+    setTrack(updated);
+    setAddOpen(false);
+    setFormTitle(""); setFormSub(""); setFormDesc(""); setFormTags("");
+    // Silently re-publish so shared link also gets the new chapter
+    fetch("/api/tracks/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trackId, title: updated.title, tagline: updated.tagline, chapters: updated.chapters }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -244,12 +279,65 @@ export default function TrackJourneyPage() {
       {/* Scroll hint */}
       <ScrollHint />
 
+      {/* Edit button — bottom-left, custom tracks only */}
+      {isEditable && (
+        <button
+          onClick={() => { setFormTitle(""); setFormSub(""); setFormDesc(""); setFormTags(""); setAddOpen(true); }}
+          style={{
+            position: "fixed", bottom: "2rem", left: "1.5rem", zIndex: 60,
+            display: "flex", alignItems: "center", gap: 6,
+            fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem",
+            color: "rgba(146,64,14,0.7)",
+            background: "rgba(254,249,231,0.85)", backdropFilter: "blur(6px)",
+            border: "1px solid rgba(245,158,11,0.3)", borderRadius: 20,
+            padding: "6px 14px", cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(120,70,20,0.12)",
+          }}
+        >
+          + Add chapter
+        </button>
+      )}
+
       {/* Wardrobe door animation */}
       {doorChapter && (
         <DoorAnimation
           chapter={doorChapter}
           onDone={() => router.replace(`/cs-journey/${trackId}/${doorChapter.id}`)}
         />
+      )}
+
+      {/* Add chapter modal */}
+      {addOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.60)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 480, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.4)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 1.2rem" }}>Add a chapter</h2>
+
+            {[{ label: "Title", val: formTitle, set: setFormTitle },
+              { label: "Subtitle", val: formSub, set: setFormSub },
+              { label: "Description", val: formDesc, set: setFormDesc }].map(({ label, val, set }) => (
+              <div key={label} style={{ marginBottom: "0.85rem" }}>
+                <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>{label}</label>
+                {label === "Description"
+                  ? <textarea value={val} onChange={(e) => set(e.target.value)} rows={2} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical" }} />
+                  : <input autoFocus={label === "Title"} value={val} onChange={(e) => set(e.target.value)} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+                }
+              </div>
+            ))}
+
+            <div style={{ marginBottom: "1.2rem" }}>
+              <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>Tags (comma-separated)</label>
+              <input value={formTags} onChange={(e) => setFormTags(e.target.value)} placeholder="e.g. arrays, sorting" style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setAddOpen(false)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={saveNewChapter} disabled={!formTitle.trim()} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: formTitle.trim() ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: formTitle.trim() ? "pointer" : "default" }}>
+                Add chapter
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </>
   );
