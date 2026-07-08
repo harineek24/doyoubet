@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Compass, Dice5, Code2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPreferences, getTenants, savePreferences } from "@/lib/repo";
 import type { Domain, LearningStyle, Subject } from "@/types/schema";
@@ -13,7 +13,7 @@ const SUBJECTS: { value: Subject; label: string }[] = [
   { value: "computer_science", label: "Computer Science" },
 ];
 
-export default function OnboardingPage() {
+function OnboardingInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -148,6 +148,10 @@ export default function OnboardingPage() {
       </motion.div>
     </main>
   );
+}
+
+export default function OnboardingPage() {
+  return <Suspense><OnboardingInner /></Suspense>;
 }
 
 function OptionCard({
