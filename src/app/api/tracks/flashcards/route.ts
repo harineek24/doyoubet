@@ -7,9 +7,9 @@ const SYSTEM_PROMPT = `You generate flashcards for one chapter of a self-paced c
 OUTPUT FORMAT
 Respond with ONLY a valid JSON array — first character [ , last character ] — no prose, no markdown, no code fences, no trailing commas.
 Each element is an object with exactly these keys, in this order:
-- "question": string — one clear, specific, testable question (the memory-test side). No compound "and/or" questions.
-- "answer": string — 2-4 sentences that fully explain the concept. Must ADD information beyond what's implied by the question; never just restate or reword the question.
-- "code": string or omit the key entirely — a runnable Python snippet ≤8 lines, included ONLY when seeing real syntax genuinely helps understanding. If the chapter's subject has its own language/syntax (SQL, JavaScript, shell, etc.), write the snippet in THAT language instead of Python — the snippet should match the concept being taught, not default to Python. Omit the key for pure theory questions rather than setting it to null or "".
+- "question": string — one clear, specific, testable plain-text question. NO code in the question field — not even inline snippets or function signatures. If the question is about reading a piece of code, put the code in the "code" field and ask e.g. "What does the function above do?" or "What will this code output?". No compound "and/or" questions.
+- "answer": string — 2-4 sentences of plain prose that fully explain the concept. Must ADD information beyond what's implied by the question; never restate or reword the question. Do NOT include code blocks or bullet lists in the answer — keep it flowing prose.
+- "code": string or omit the key entirely — a runnable Python snippet ≤8 lines, included ONLY when seeing real syntax genuinely helps understanding. Omit the key for pure theory questions rather than setting it to null or "".
 
 Escape all newlines and quotes inside string values properly so the result is valid, parseable JSON.
 
