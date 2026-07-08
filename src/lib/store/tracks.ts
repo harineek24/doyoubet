@@ -1,7 +1,7 @@
 import { JOURNEY } from "@/components/cs-journey/journeyData";
 import type { Track, TrackChapter } from "@/types/schema";
 
-const PALETTES = [
+export const PALETTES = [
   { g1: "#fef9c3", g2: "#fde68a", g3: "#f59e0b", accent: "#92400e" }, // amber
   { g1: "#eff6ff", g2: "#93c5fd", g3: "#3b82f6", accent: "#1e40af" }, // blue
   { g1: "#f0fdfa", g2: "#5eead4", g3: "#0d9488", accent: "#134e4a" }, // teal

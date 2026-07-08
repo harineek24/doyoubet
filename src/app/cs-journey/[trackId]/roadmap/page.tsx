@@ -4,9 +4,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Lenis from "lenis";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTrack } from "@/lib/repo";
-import type { TrackChapter } from "@/types/schema";
+import { getTrack, saveTrackMeta } from "@/lib/repo";
+import { PALETTES } from "@/lib/store/tracks";
+import type { Track, TrackChapter } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -26,9 +28,11 @@ export default function TrackRoadmapPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const track = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
+  const baseTrack = useMemo(() => (user ? getTrack(user.id, trackId) : undefined), [user, trackId]);
+  const [track, setTrack] = useState<Track | undefined>(baseTrack);
+  useEffect(() => { setTrack(baseTrack); }, [baseTrack]);
   const chapters = track?.chapters ?? [];
-
+  const isEditable = track?.source === "ai-generated";
 
   const spacerRef   = useRef<HTMLDivElement>(null);
   const cardRef     = useRef<HTMLDivElement>(null);
@@ -40,6 +44,44 @@ export default function TrackRoadmapPage() {
 
   const [ctaReady, setCtaReady] = useState(false);
   const [entering, setEntering] = useState(true);
+
+  // Chapter modal (add / edit)
+  type ModalMode = { mode: "add" } | { mode: "edit"; chapter: TrackChapter };
+  const [chModal, setChModal]       = useState<ModalMode | null>(null);
+  const [formTitle, setFormTitle]   = useState("");
+  const [formSub, setFormSub]       = useState("");
+  const [formDesc, setFormDesc]     = useState("");
+  const [formTags, setFormTags]     = useState("");
+  const [delChapter, setDelChapter] = useState<TrackChapter | null>(null);
+  const [delInput, setDelInput]     = useState("");
+
+  function openAdd() { setFormTitle(""); setFormSub(""); setFormDesc(""); setFormTags(""); setChModal({ mode: "add" }); }
+  function openEdit(ch: TrackChapter) { setFormTitle(ch.title); setFormSub(ch.sub); setFormDesc(ch.desc); setFormTags(ch.tags.join(", ")); setChModal({ mode: "edit", chapter: ch }); }
+
+  function saveChapter() {
+    if (!track || !user || !formTitle.trim()) return;
+    const tags = formTags.split(",").map((t) => t.trim()).filter(Boolean);
+    let updated: Track;
+    if (chModal?.mode === "edit" && chModal.chapter) {
+      updated = { ...track, chapters: track.chapters.map((c) => c.id === chModal.chapter.id ? { ...c, title: formTitle.trim(), sub: formSub.trim(), desc: formDesc.trim(), tags } : c) };
+    } else {
+      const n = track.chapters.length + 1;
+      const p = PALETTES[track.chapters.length % PALETTES.length];
+      const newCh: TrackChapter = { id: `${trackId}-${Date.now()}`, num: String(n).padStart(2, "0"), title: formTitle.trim(), sub: formSub.trim(), desc: formDesc.trim(), tags, ...p };
+      updated = { ...track, chapters: [...track.chapters, newCh] };
+    }
+    saveTrackMeta(user.id, updated);
+    setTrack(updated);
+    setChModal(null);
+  }
+
+  function confirmDeleteChapter() {
+    if (!track || !user || !delChapter || delInput !== "delete") return;
+    const updated = { ...track, chapters: track.chapters.filter((c) => c.id !== delChapter.id) };
+    saveTrackMeta(user.id, updated);
+    setTrack(updated);
+    setDelChapter(null); setDelInput("");
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -236,9 +278,8 @@ export default function TrackRoadmapPage() {
 
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
               {chapters.map((ch, i) => (
-                <button
+                <div
                   key={ch.id}
-                  onClick={() => router.push(`/cs-journey/${trackId}/${ch.id}`)}
                   style={{
                     flex: 1, minHeight: 64,
                     display: "flex", alignItems: "center",
@@ -246,12 +287,12 @@ export default function TrackRoadmapPage() {
                     padding: "0 clamp(2rem, 5vw, 4.5rem)",
                     gap: "clamp(1rem, 2.2vw, 2.2rem)",
                     background: i % 2 === 0 ? "rgba(255,255,255,0.016)" : "transparent",
-                    border: "none",
                     borderBottom: i < chapters.length - 1 ? "1px solid rgba(255,255,255,0.042)" : "none",
                     boxShadow: "inset 0 -5px 14px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.05)",
                     overflow: "hidden",
                     cursor: "pointer",
                   }}
+                  onClick={() => router.push(`/cs-journey/${trackId}/${ch.id}`)}
                 >
                   <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: `linear-gradient(to bottom, ${ch.g2}cc, ${ch.g3})` }} />
 
@@ -270,7 +311,7 @@ export default function TrackRoadmapPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
                     {ch.tags.slice(0, 2).map(tag => (
                       <span key={tag} style={{
                         fontFamily: MONO, fontSize: "clamp(0.45rem, 0.72vw, 0.56rem)",
@@ -281,8 +322,19 @@ export default function TrackRoadmapPage() {
                         {tag}
                       </span>
                     ))}
+
+                    {isEditable && (
+                      <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => openEdit(ch)} title="Edit chapter" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "3px 6px", cursor: "pointer", color: "rgba(245,158,11,0.7)", display: "flex", alignItems: "center" }}>
+                          <Pencil size={11} />
+                        </button>
+                        <button onClick={() => { setDelChapter(ch); setDelInput(""); }} title="Delete chapter" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.22)", borderRadius: 6, padding: "3px 6px", cursor: "pointer", color: "rgba(220,38,38,0.55)", display: "flex", alignItems: "center" }}>
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
 
@@ -294,9 +346,25 @@ export default function TrackRoadmapPage() {
               display: "flex", alignItems: "center", justifyContent: "space-between",
               flexWrap: "wrap", gap: "1rem",
             }}>
-              <p style={{ fontFamily: SERIF, fontSize: "0.82rem", fontStyle: "italic", color: "rgba(245,158,11,0.42)", margin: 0, lineHeight: 1.5 }}>
-                {chapters.length} parts · Click any row to read it · Self-paced
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "1.2rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => router.push("/cs-journey")}
+                  style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "rgba(245,158,11,0.42)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  ← All Subjects
+                </button>
+                <p style={{ fontFamily: SERIF, fontSize: "0.82rem", fontStyle: "italic", color: "rgba(245,158,11,0.28)", margin: 0, lineHeight: 1.5 }}>
+                  {chapters.length} parts · Click any row to begin · Self-paced
+                </p>
+                {isEditable && (
+                  <button
+                    onClick={openAdd}
+                    style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(245,158,11,0.7)", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}
+                  >
+                    <Plus size={12} /> Add chapter
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => ctaReady && router.push("/dashboard/study")}
                 style={{
@@ -331,6 +399,72 @@ export default function TrackRoadmapPage() {
         </div>
       </div>
 
+      {/* ── Add / Edit chapter modal ── */}
+      {chModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.80)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 480, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 1.2rem" }}>
+              {chModal.mode === "add" ? "Add a chapter" : "Edit chapter"}
+            </h2>
+
+            {(["Title", "Subtitle", "Description"] as const).map((label) => {
+              const key = label.toLowerCase() as "title" | "subtitle" | "description";
+              const val = key === "title" ? formTitle : key === "subtitle" ? formSub : formDesc;
+              const set = key === "title" ? setFormTitle : key === "subtitle" ? setFormSub : setFormDesc;
+              return (
+                <div key={label} style={{ marginBottom: "0.85rem" }}>
+                  <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>{label}</label>
+                  {label === "Description"
+                    ? <textarea value={val} onChange={(e) => set(e.target.value)} rows={2} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical" }} />
+                    : <input autoFocus={label === "Title"} value={val} onChange={(e) => set(e.target.value)} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+                  }
+                </div>
+              );
+            })}
+
+            <div style={{ marginBottom: "1.2rem" }}>
+              <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>Tags (comma-separated)</label>
+              <input value={formTags} onChange={(e) => setFormTags(e.target.value)} placeholder="e.g. arrays, sorting, recursion" style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setChModal(null)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={saveChapter} disabled={!formTitle.trim()} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: formTitle.trim() ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: formTitle.trim() ? "pointer" : "default", transition: "background 0.15s" }}>
+                {chModal.mode === "add" ? "Add chapter" : "Save changes"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Delete chapter confirmation ── */}
+      {delChapter && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.80)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 400, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 0.4rem" }}>Delete chapter?</h2>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.85rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 0.5rem" }}>
+              &ldquo;{delChapter.title}&rdquo;
+            </p>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 1rem" }}>
+              Type <strong>delete</strong> to confirm. This also removes its flashcards.
+            </p>
+            <input
+              autoFocus
+              value={delInput}
+              onChange={(e) => setDelInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmDeleteChapter(); if (e.key === "Escape") { setDelChapter(null); setDelInput(""); } }}
+              placeholder="delete"
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: "0.9rem", padding: "0.6rem 0.9rem", borderRadius: 10, border: "1.5px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.04)", color: "#1c1008", outline: "none", marginBottom: "1.1rem" }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setDelChapter(null); setDelInput(""); }} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteChapter} disabled={delInput !== "delete"} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: delInput === "delete" ? "linear-gradient(135deg, #dc2626, #b91c1c)" : "rgba(220,38,38,0.25)", border: "none", borderRadius: 50, padding: "8px 20px", cursor: delInput === "delete" ? "pointer" : "default", transition: "background 0.15s" }}>Delete</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 }
