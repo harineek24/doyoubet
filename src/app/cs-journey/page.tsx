@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Copy, Link2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllTracks, deleteCustomTrack } from "@/lib/repo";
+import { getAllTracks, deleteCustomTrack, hideBuiltinTrack } from "@/lib/repo";
 import type { Track } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
@@ -61,7 +61,11 @@ export default function CSJourneyPickerPage() {
 
   function handleDeleteConfirm() {
     if (!user || !deleteTarget || deleteInput !== "delete") return;
-    deleteCustomTrack(user.id, deleteTarget.id);
+    if (deleteTarget.source === "builtin") {
+      hideBuiltinTrack(user.id, deleteTarget.id);
+    } else {
+      deleteCustomTrack(user.id, deleteTarget.id);
+    }
     setTracks(getAllTracks(user.id));
     setDeleteTarget(null);
     setDeleteInput("");
@@ -159,9 +163,9 @@ export default function CSJourneyPickerPage() {
               </p>
             </button>
 
-            {/* Share + Delete buttons — only on ai-generated tracks */}
-            {t.source === "ai-generated" && (
-              <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 5 }}>
+            {/* Action buttons — share only on custom, delete on all */}
+            <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 5 }}>
+              {t.source === "ai-generated" && (
                 <button
                   onClick={(e) => { e.stopPropagation(); openShare(t); }}
                   style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(146,64,14,0.6)" }}
@@ -169,15 +173,15 @@ export default function CSJourneyPickerPage() {
                 >
                   <Link2 size={13} />
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); setDeleteInput(""); }}
-                  style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(220,38,38,0.55)" }}
-                  title="Delete subject"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            )}
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); setDeleteInput(""); }}
+                style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(220,38,38,0.55)" }}
+                title="Remove subject"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </motion.div>
         ))}
       </div>
@@ -194,7 +198,9 @@ export default function CSJourneyPickerPage() {
               Delete &ldquo;{deleteTarget.title}&rdquo;?
             </h2>
             <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 1.2rem" }}>
-              This will permanently remove the subject and all its flashcards. Type <strong>delete</strong> to confirm.
+              {deleteTarget?.source === "builtin"
+                ? <>This will hide the subject from your list. Type <strong>delete</strong> to confirm.</>
+                : <>This will permanently remove the subject and all its flashcards. Type <strong>delete</strong> to confirm.</>}
             </p>
             <input
               autoFocus
