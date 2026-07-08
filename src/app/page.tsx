@@ -10,7 +10,14 @@ export default function RootPage() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? "/onboarding" : "/login");
+    if (!user) { router.replace("/login"); return; }
+    const joinRedirect = localStorage.getItem("devquest_join_redirect");
+    if (joinRedirect) {
+      localStorage.removeItem("devquest_join_redirect");
+      router.replace(joinRedirect);
+      return;
+    }
+    router.replace("/onboarding");
   }, [loading, user, router]);
 
   return null;
