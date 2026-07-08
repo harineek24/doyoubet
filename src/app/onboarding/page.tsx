@@ -51,6 +51,12 @@ export default function OnboardingPage() {
       updatedAt: new Date().toISOString(),
     });
     getTenants(user!.id);
+    const joinRedirect = localStorage.getItem("devquest_join_redirect");
+    if (joinRedirect) {
+      localStorage.removeItem("devquest_join_redirect");
+      router.replace(joinRedirect);
+      return;
+    }
     router.replace("/cs-intro");
   }
 
