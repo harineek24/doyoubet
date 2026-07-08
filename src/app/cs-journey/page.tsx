@@ -163,17 +163,15 @@ export default function CSJourneyPickerPage() {
               </p>
             </button>
 
-            {/* Action buttons — share only on custom, delete on all */}
+            {/* Action buttons — share + delete on all tracks */}
             <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 5 }}>
-              {t.source === "ai-generated" && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); openShare(t); }}
-                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(146,64,14,0.6)" }}
-                  title="Share subject"
-                >
-                  <Link2 size={13} />
-                </button>
-              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); openShare(t); }}
+                style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(146,64,14,0.6)" }}
+                title="Share subject"
+              >
+                <Link2 size={13} />
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); setDeleteInput(""); }}
                 style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 8, padding: "4px 7px", cursor: "pointer", display: "flex", alignItems: "center", color: "rgba(220,38,38,0.55)" }}
