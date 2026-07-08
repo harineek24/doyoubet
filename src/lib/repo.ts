@@ -186,8 +186,18 @@ export function getCustomTracks(userId: string): Track[] {
   return readKey<Track[]>(`tracks:${userId}`, []);
 }
 
+export function getHiddenBuiltinIds(userId: string): string[] {
+  return readKey<string[]>(`hidden-builtins:${userId}`, []);
+}
+
+export function hideBuiltinTrack(userId: string, trackId: string): void {
+  const hidden = getHiddenBuiltinIds(userId);
+  if (!hidden.includes(trackId)) writeKey(`hidden-builtins:${userId}`, [...hidden, trackId]);
+}
+
 export function getAllTracks(userId: string): Track[] {
-  return [...BUILTIN_TRACKS, ...getCustomTracks(userId)];
+  const hidden = new Set(getHiddenBuiltinIds(userId));
+  return [...BUILTIN_TRACKS.filter((t) => !hidden.has(t.id)), ...getCustomTracks(userId)];
 }
 
 export function getTrack(userId: string, trackId: string): Track | undefined {
