@@ -96,27 +96,14 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   // Reset flip/idx when chapter changes
   useEffect(() => { setIdx(0); setFlipped(false); }, [ch.id]);
 
-  function looksLikeCode(text: string): boolean {
-    return /\bdef \w+\s*\(|\bclass \w+|\breturn\b|\bfor \w+ in |\bwhile \w|\bif \w.*:|->\s*(bool|int|str|float|list|dict|None)|\.lower\(\)|\.upper\(\)|\.append\(/.test(text);
-  }
-
   function renderQuestion(text: string) {
-    if (!looksLikeCode(text)) {
+    const isCode = text.includes("\n") || /\bdef \w+\s*\(|\bclass \w+|->\s*(bool|int|str|float|list|dict|None)|\.lower\(\)|\.upper\(\)|\.append\(/.test(text);
+    if (!isCode) {
       return <p style={{ fontFamily: SERIF, fontSize: "clamp(1.1rem, 2.5vw, 1.45rem)", fontWeight: 700, color: "#1c1008", lineHeight: 1.4, margin: 0 }}>{text}</p>;
     }
-    // Reconstruct likely line breaks for squashed Python code
-    const formatted = text
-      .replace(/(\bdef \w+[^:]+:)\s*/g, "$1\n  ")
-      .replace(/\s+(return\b)/g, "\n  $1")
-      .replace(/\s+(if\b)/g, "\n  $1")
-      .replace(/\s+(elif\b)/g, "\n  $1")
-      .replace(/\s+(else:)/g, "\n  $1")
-      .replace(/\s+(for\b)/g, "\n  $1")
-      .replace(/\s+(while\b)/g, "\n  $1")
-      .replace(/\s+(left \+=|right -=|left,|right =)/g, "\n  $1");
     return (
-      <pre style={{ fontFamily: MONO, fontSize: "clamp(0.72rem, 1.6vw, 0.88rem)", color: "#1c1008", background: "rgba(0,0,0,0.08)", borderRadius: 10, padding: "0.75rem 1rem", margin: 0, whiteSpace: "pre-wrap", textAlign: "left", lineHeight: 1.6, width: "100%" }}>
-        {formatted}
+      <pre style={{ fontFamily: MONO, fontSize: "clamp(0.72rem, 1.6vw, 0.85rem)", color: "#1c1008", background: "rgba(0,0,0,0.08)", borderRadius: 10, padding: "0.75rem 1rem", margin: 0, whiteSpace: "pre-wrap", textAlign: "left", lineHeight: 1.6, width: "100%", overflowX: "auto" }}>
+        {text}
       </pre>
     );
   }
@@ -136,31 +123,28 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   function prev() { setIdx((i) => Math.max(i - 1, 0)); setFlipped(false); }
 
   function renderAnswer(text: string) {
-    const lines = text.split("\n");
-    const items = lines.filter((l) => /^[-*]\s/.test(l.trim()));
-    if (items.length >= 2) {
-      const parts = text.split(/\n(?=[-*]\s)/);
+    const style = { fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7 };
+
+    // Numbered list — handles both newline-separated and squashed ("1. foo 2. bar")
+    const numberedHits = [...text.matchAll(/(?<![.\d])\d+\.\s+\S/g)];
+    if (numberedHits.length >= 2) {
+      const items = text.split(/(?=(?<![.\d])\d+\.\s+)/).map((s) => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
+      return <ol style={{ ...style, margin: 0, paddingLeft: "1.3rem" }}>{items.map((item, i) => <li key={i} style={{ marginBottom: "0.25rem" }}>{item}</li>)}</ol>;
+    }
+
+    // Bullet list — newline-separated
+    if ((text.match(/\n[-*]\s/g) ?? []).length >= 1 || (text.match(/^[-*]\s/m) ?? []).length >= 2) {
+      const items = text.split(/\n/).filter((l) => /^[-*]\s/.test(l.trim()));
+      const prose = text.split(/\n/).filter((l) => !/^[-*]\s/.test(l.trim()) && l.trim()).join(" ");
       return (
-        <div style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7 }}>
-          {parts.map((part, i) => {
-            if (/^[-*]\s/.test(part.trim())) {
-              const listLines = part.split("\n").filter((l) => /^[-*]\s/.test(l.trim()));
-              const prose = part.split("\n").filter((l) => !/^[-*]\s/.test(l.trim()) && l.trim()).join(" ");
-              return (
-                <span key={i}>
-                  {prose && <span style={{ display: "block", marginBottom: "0.3rem" }}>{prose}</span>}
-                  <ul style={{ margin: "0.3rem 0 0.5rem", paddingLeft: "1.2rem" }}>
-                    {listLines.map((l, j) => <li key={j}>{l.replace(/^[-*]\s+/, "")}</li>)}
-                  </ul>
-                </span>
-              );
-            }
-            return <span key={i} style={{ display: "block" }}>{part.trim()}</span>;
-          })}
+        <div style={style}>
+          {prose && <p style={{ margin: "0 0 0.4rem" }}>{prose}</p>}
+          <ul style={{ margin: 0, paddingLeft: "1.3rem" }}>{items.map((l, i) => <li key={i} style={{ marginBottom: "0.25rem" }}>{l.replace(/^[-*]\s+/, "")}</li>)}</ul>
         </div>
       );
     }
-    return <p style={{ fontFamily: SERIF, fontSize: "0.95rem", color: "#3c2a1e", lineHeight: 1.7, margin: 0 }}>{text}</p>;
+
+    return <p style={{ ...style, margin: 0 }}>{text}</p>;
   }
 
   function persistCards(updated: Flashcard[]) {
@@ -322,7 +306,9 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                     </div>
                     {/* Back */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "1.75rem 2rem", minHeight: 220, overflowY: "auto" }}>
-                      <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "0.9rem", color: ch.accent, marginBottom: "0.55rem" }}>{card?.question}</p>
+                      <div style={{ marginBottom: "0.55rem", color: ch.accent, fontWeight: 700 }}>
+                        {card && renderQuestion(card.question)}
+                      </div>
                       {card && renderAnswer(card.answer)}
                       {card?.code && (
                         <pre style={{ marginTop: "0.9rem", background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap" }}>
