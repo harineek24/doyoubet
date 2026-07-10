@@ -7,9 +7,10 @@ import { Loader2, ExternalLink, GitBranch, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack, getChapterFlashcards, saveChapterFlashcards } from "@/lib/repo";
 import { pushFile, ensureRepo } from "@/lib/github";
-import { getGithubConnection } from "@/lib/githubConnection";
+import { getGithubConnection, setGithubRepo } from "@/lib/githubConnection";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { Flashcard, TrackChapter } from "@/types/schema";
+import { RepoFolderPicker } from "@/components/practice/RepoFolderPicker";
+import type { Flashcard, TrackChapter, GithubConnection } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -90,8 +91,21 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   const [runOutput, setRunOutput] = useState<string | null>(null);
   const [pushing, setPushing]     = useState(false);
   const [pushUrl, setPushUrl]     = useState<string | null>(null);
+  const [githubConnection, setGithubConnection] = useState<GithubConnection | null>(null);
+  const [destRepo, setDestRepo] = useState<string | null>(null);
+  const [destPath, setDestPath] = useState(`chapters/${trackId}/${chapterId}`);
+  const [showDestPicker, setShowDestPicker] = useState(false);
 
   useEffect(() => { const t = setTimeout(() => setEntering(false), 80); return () => clearTimeout(t); }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !user) return;
+    getGithubConnection(supabase, user.id).then((conn) => {
+      setGithubConnection(conn);
+      if (conn?.repoFullName) setDestRepo(conn.repoFullName);
+    });
+  }, [user]);
 
   // Reset flip/idx when chapter changes
   useEffect(() => { setIdx(0); setFlipped(false); }, [ch.id]);
@@ -191,16 +205,25 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
       const supabase = getSupabaseBrowserClient();
       const conn = supabase ? await getGithubConnection(supabase, user.id) : null;
       if (!conn?.accessToken) { alert("Connect GitHub in Settings first."); return; }
-      const repoFull = conn.repoFullName ?? await ensureRepo(conn.accessToken, "devquest-submissions");
+
+      let repoFull = destRepo ?? conn.repoFullName;
+      if (!repoFull) {
+        repoFull = await ensureRepo(conn.accessToken, "devquest-submissions");
+      }
+      if (!conn.repoFullName && supabase) {
+        await setGithubRepo(supabase, user.id, repoFull);
+      }
+
+      const path = destPath.replace(/^\/|\/$/g, "") || `chapters/${trackId}/${ch.id}`;
       const notesContent = cards.map((c) => `## ${c.question}\n\n${c.answer}`).join("\n\n---\n\n");
       const problemNote  = activeProblem ? `\n\n## Practice Problem\n[${activeProblem.name}](${activeProblem.url})\n` : "";
       await pushFile(conn.accessToken, repoFull,
-        `chapters/${trackId}/${ch.id}/notes.md`,
+        `${path}/notes.md`,
         `# ${ch.title}\n\n${notesContent}${problemNote}`,
         `Add notes: ${ch.title}`);
       if (activeProblem && code.trim()) {
         const { htmlUrl } = await pushFile(conn.accessToken, repoFull,
-          `chapters/${trackId}/${ch.id}/${activeProblem.id}_solution.py`,
+          `${path}/${activeProblem.id}_solution.py`,
           code, `Add solution: ${activeProblem.name}`);
         setPushUrl(htmlUrl);
       }
@@ -414,6 +437,29 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   </div>
                 </div>
                 <textarea value={code} onChange={(e) => setCode(e.target.value)} rows={12} spellCheck={false} style={{ fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(245,158,11,0.18)", resize: "vertical", outline: "none", lineHeight: 1.6 }} />
+
+                {githubConnection && (
+                  <div>
+                    <button
+                      onClick={() => setShowDestPicker((s) => !s)}
+                      style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.74rem", color: "rgba(245,158,11,0.55)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      {showDestPicker ? "▾" : "▸"} Push to: <span style={{ fontFamily: MONO, color: ch.accent }}>{(destRepo ?? githubConnection.repoFullName ?? "…")}/{destPath}</span>
+                    </button>
+                    {showDestPicker && (
+                      <div style={{ marginTop: 8 }}>
+                        <RepoFolderPicker
+                          token={githubConnection.accessToken}
+                          defaultRepo={destRepo ?? githubConnection.repoFullName}
+                          defaultPath={destPath}
+                          accentColor={ch.accent}
+                          onChange={(repo, path) => { setDestRepo(repo); setDestPath(path); }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {runOutput !== null && (
                   <pre style={{ fontFamily: MONO, fontSize: "0.8rem", background: "#080504", color: "#86efac", padding: "10px 14px", borderRadius: 10, margin: 0, overflowX: "auto", maxHeight: 160, overflowY: "auto" }}>
                     {runOutput}
