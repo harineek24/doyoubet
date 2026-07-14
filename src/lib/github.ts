@@ -43,6 +43,44 @@ export async function ensureRepo(token: string, repoName: string): Promise<strin
   return repo.full_name;
 }
 
+export type GithubRepoSummary = { fullName: string; name: string; private: boolean };
+
+/** Lists repos the authenticated user owns or collaborates on, most recently updated first. */
+export async function listUserRepos(token: string): Promise<GithubRepoSummary[]> {
+  const res = await fetch(`${API_BASE}/user/repos?per_page=100&sort=updated`, {
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error("Failed to list repositories");
+  const repos = await res.json();
+  return repos.map((r: { full_name: string; name: string; private: boolean }) => ({
+    fullName: r.full_name,
+    name: r.name,
+    private: r.private,
+  }));
+}
+
+export type GithubContentEntry = { name: string; path: string; type: "dir" | "file" };
+
+/** Lists the folders (and files) at a given path in a repo — "" for the repo root. */
+export async function listRepoContents(
+  token: string,
+  repoFullName: string,
+  path: string = ""
+): Promise<GithubContentEntry[]> {
+  const res = await fetch(`${API_BASE}/repos/${repoFullName}/contents/${path}`, {
+    headers: headers(token),
+  });
+  if (res.status === 404) return []; // empty/nonexistent path — nothing to show yet
+  if (!res.ok) throw new Error("Failed to list repository contents");
+  const data = await res.json();
+  const entries = Array.isArray(data) ? data : [data];
+  return entries.map((e: { name: string; path: string; type: string }) => ({
+    name: e.name,
+    path: e.path,
+    type: e.type === "dir" ? "dir" : "file",
+  }));
+}
+
 /** Creates or updates a file at the given path in the repo. */
 export async function pushFile(
   token: string,

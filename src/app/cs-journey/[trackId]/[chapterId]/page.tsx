@@ -7,9 +7,10 @@ import { Loader2, ExternalLink, GitBranch, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack, getChapterFlashcards, saveChapterFlashcards } from "@/lib/repo";
 import { pushFile, ensureRepo } from "@/lib/github";
-import { getGithubConnection } from "@/lib/githubConnection";
+import { getGithubConnection, setGithubRepo } from "@/lib/githubConnection";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { Flashcard, TrackChapter } from "@/types/schema";
+import { RepoFolderPicker } from "@/components/practice/RepoFolderPicker";
+import type { Flashcard, TrackChapter, GithubConnection } from "@/types/schema";
 
 const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
 const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
@@ -57,7 +58,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   prevId?: string;
   nextId?: string;
 }) {
-  const { user } = useAuth();
+  const { user, connectGithub } = useAuth();
   const router   = useRouter();
 
   // Merge AI-generated flashcards with any user-saved overrides from localStorage
@@ -69,7 +70,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
 
   const [idx, setIdx]     = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [tab, setTab]     = useState<"cards" | "notes" | "practice">("cards");
+  const [tab, setTab]     = useState<"cards" | "notes" | "practice" | "github">("cards");
   const [entering, setEntering] = useState(true);
 
   // Add card form
@@ -90,8 +91,21 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   const [runOutput, setRunOutput] = useState<string | null>(null);
   const [pushing, setPushing]     = useState(false);
   const [pushUrl, setPushUrl]     = useState<string | null>(null);
+  const [githubConnection, setGithubConnection] = useState<GithubConnection | null>(null);
+  const [destRepo, setDestRepo] = useState<string | null>(null);
+  const [destPath, setDestPath] = useState(`chapters/${trackId}/${chapterId}`);
+  const [showDestPicker, setShowDestPicker] = useState(false);
 
   useEffect(() => { const t = setTimeout(() => setEntering(false), 80); return () => clearTimeout(t); }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !user) return;
+    getGithubConnection(supabase, user.id).then((conn) => {
+      setGithubConnection(conn);
+      if (conn?.repoFullName) setDestRepo(conn.repoFullName);
+    });
+  }, [user]);
 
   // Reset flip/idx when chapter changes
   useEffect(() => { setIdx(0); setFlipped(false); }, [ch.id]);
@@ -191,16 +205,25 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
       const supabase = getSupabaseBrowserClient();
       const conn = supabase ? await getGithubConnection(supabase, user.id) : null;
       if (!conn?.accessToken) { alert("Connect GitHub in Settings first."); return; }
-      const repoFull = conn.repoFullName ?? await ensureRepo(conn.accessToken, "devquest-submissions");
+
+      let repoFull = destRepo ?? conn.repoFullName;
+      if (!repoFull) {
+        repoFull = await ensureRepo(conn.accessToken, "devquest-submissions");
+      }
+      if (!conn.repoFullName && supabase) {
+        await setGithubRepo(supabase, user.id, repoFull);
+      }
+
+      const path = destPath.replace(/^\/|\/$/g, "") || `chapters/${trackId}/${ch.id}`;
       const notesContent = cards.map((c) => `## ${c.question}\n\n${c.answer}`).join("\n\n---\n\n");
       const problemNote  = activeProblem ? `\n\n## Practice Problem\n[${activeProblem.name}](${activeProblem.url})\n` : "";
       await pushFile(conn.accessToken, repoFull,
-        `chapters/${trackId}/${ch.id}/notes.md`,
+        `${path}/notes.md`,
         `# ${ch.title}\n\n${notesContent}${problemNote}`,
         `Add notes: ${ch.title}`);
       if (activeProblem && code.trim()) {
         const { htmlUrl } = await pushFile(conn.accessToken, repoFull,
-          `chapters/${trackId}/${ch.id}/${activeProblem.id}_solution.py`,
+          `${path}/${activeProblem.id}_solution.py`,
           code, `Add solution: ${activeProblem.name}`);
         setPushUrl(htmlUrl);
       }
@@ -208,10 +231,31 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
     finally { setPushing(false); }
   }
 
+  // GitHub tab state
+  const [ghCode, setGhCode]           = useState("# Write your code here\n");
+  const [ghFileName, setGhFileName]   = useState("solution.py");
+  const [ghCommitMsg, setGhCommitMsg] = useState(`Add: ${ch.title}`);
+  const [ghCommitting, setGhCommitting] = useState(false);
+  const [ghCommitUrl, setGhCommitUrl]   = useState<string | null>(null);
+  const [ghError, setGhError]           = useState<string | null>(null);
+
+  async function commitToGithub() {
+    if (!githubConnection?.accessToken) return;
+    setGhCommitting(true); setGhCommitUrl(null); setGhError(null);
+    try {
+      const repo = destRepo ?? await ensureRepo(githubConnection.accessToken, "devquest-submissions");
+      const filePath = `${destPath}/${ghFileName.trim() || "solution.py"}`;
+      const { htmlUrl } = await pushFile(githubConnection.accessToken, repo, filePath, ghCode, ghCommitMsg || `Add: ${ch.title}`);
+      setGhCommitUrl(htmlUrl);
+    } catch (e) { setGhError((e as Error).message); }
+    finally { setGhCommitting(false); }
+  }
+
   const TABS = [
     { key: "cards" as const,    label: `Flashcards (${cards.length})` },
     { key: "notes" as const,    label: "All Notes" },
     { key: "practice" as const, label: "Practice" },
+    { key: "github" as const,   label: "GitHub" },
   ];
 
   return (
@@ -414,6 +458,29 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   </div>
                 </div>
                 <textarea value={code} onChange={(e) => setCode(e.target.value)} rows={12} spellCheck={false} style={{ fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(245,158,11,0.18)", resize: "vertical", outline: "none", lineHeight: 1.6 }} />
+
+                {githubConnection && (
+                  <div>
+                    <button
+                      onClick={() => setShowDestPicker((s) => !s)}
+                      style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.74rem", color: "rgba(245,158,11,0.55)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      {showDestPicker ? "▾" : "▸"} Push to: <span style={{ fontFamily: MONO, color: ch.accent }}>{(destRepo ?? githubConnection.repoFullName ?? "…")}/{destPath}</span>
+                    </button>
+                    {showDestPicker && (
+                      <div style={{ marginTop: 8 }}>
+                        <RepoFolderPicker
+                          token={githubConnection.accessToken}
+                          defaultRepo={destRepo ?? githubConnection.repoFullName}
+                          defaultPath={destPath}
+                          accentColor={ch.accent}
+                          onChange={(repo, path) => { setDestRepo(repo); setDestPath(path); }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {runOutput !== null && (
                   <pre style={{ fontFamily: MONO, fontSize: "0.8rem", background: "#080504", color: "#86efac", padding: "10px 14px", borderRadius: 10, margin: 0, overflowX: "auto", maxHeight: 160, overflowY: "auto" }}>
                     {runOutput}
@@ -425,6 +492,90 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   </p>
                 )}
               </div>
+            )}
+          </div>
+        )}
+        {/* ── GitHub ── */}
+        {tab === "github" && (
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {!githubConnection ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", paddingTop: "2rem" }}>
+                <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.9rem", color: "rgba(245,158,11,0.4)", margin: 0, textAlign: "center" }}>
+                  Connect your GitHub account to commit code directly from here.
+                </p>
+                <button
+                  onClick={connectGithub}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.9rem", color: "#fffdf8", background: "linear-gradient(135deg, #f59e0b, #d97706)", border: "none", borderRadius: 50, padding: "11px 28px", cursor: "pointer", boxShadow: "0 6px 20px rgba(245,158,11,0.35)" }}
+                >
+                  <GitBranch className="h-4 w-4" /> Connect GitHub
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Repo + folder picker */}
+                <div>
+                  <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(245,158,11,0.45)", margin: "0 0 6px" }}>
+                    Committing to: <span style={{ fontFamily: MONO, color: ch.accent }}>{(destRepo ?? githubConnection.repoFullName ?? "…")}/{destPath}/</span>
+                  </p>
+                  <RepoFolderPicker
+                    token={githubConnection.accessToken}
+                    defaultRepo={destRepo ?? githubConnection.repoFullName}
+                    defaultPath={destPath}
+                    accentColor={ch.accent}
+                    onChange={(repo, path) => { setDestRepo(repo); setDestPath(path); }}
+                  />
+                </div>
+
+                {/* File name + commit message */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontFamily: SERIF, fontSize: "0.72rem", color: "rgba(245,158,11,0.5)", display: "block", marginBottom: 4 }}>File name</label>
+                    <input
+                      value={ghFileName}
+                      onChange={(e) => setGhFileName(e.target.value)}
+                      placeholder="solution.py"
+                      style={{ width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(245,158,11,0.18)", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ flex: 2 }}>
+                    <label style={{ fontFamily: SERIF, fontSize: "0.72rem", color: "rgba(245,158,11,0.5)", display: "block", marginBottom: 4 }}>Commit message</label>
+                    <input
+                      value={ghCommitMsg}
+                      onChange={(e) => setGhCommitMsg(e.target.value)}
+                      placeholder={`Add: ${ch.title}`}
+                      style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(245,158,11,0.18)", outline: "none" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Code editor */}
+                <textarea
+                  value={ghCode}
+                  onChange={(e) => setGhCode(e.target.value)}
+                  rows={16}
+                  spellCheck={false}
+                  style={{ fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(245,158,11,0.18)", resize: "vertical", outline: "none", lineHeight: 1.6 }}
+                />
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button
+                    onClick={commitToGithub}
+                    disabled={ghCommitting || !ghCode.trim()}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: (!ghCommitting && ghCode.trim()) ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "10px 24px", cursor: (!ghCommitting && ghCode.trim()) ? "pointer" : "default", transition: "background 0.15s" }}
+                  >
+                    {ghCommitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5" />}
+                    {ghCommitting ? "Committing…" : "Commit to GitHub"}
+                  </button>
+                  {ghCommitUrl && (
+                    <a href={ghCommitUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent }}>
+                      ✓ View on GitHub →
+                    </a>
+                  )}
+                  {ghError && (
+                    <p style={{ fontFamily: MONO, fontSize: "0.75rem", color: "rgba(220,38,38,0.7)", margin: 0 }}>{ghError}</p>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}

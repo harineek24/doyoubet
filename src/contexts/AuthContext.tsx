@@ -108,14 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const connectGithub = useCallback(async () => {
-    if (!supabase) return;
-    await supabase.auth.linkIdentity({
+    if (!supabase) { alert("Supabase not configured"); return; }
+    const redirect = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    const { error } = await supabase.auth.linkIdentity({
       provider: "github",
-      options: {
-        scopes: "repo",
-        redirectTo: `${window.location.origin}/dashboard/study`,
-      },
+      options: { scopes: "repo", redirectTo: redirect },
     });
+    if (error) alert(`GitHub connect failed: ${error.message}`);
   }, [supabase]);
 
   const signInDemo = useCallback(() => {
