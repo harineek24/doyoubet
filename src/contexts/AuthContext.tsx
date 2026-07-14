@@ -109,11 +109,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const connectGithub = useCallback(async () => {
     if (!supabase) return;
+    // Return the user to wherever they clicked "Connect GitHub" from (e.g. a
+    // chapter's Practice tab), not a fixed page — otherwise anything they'd
+    // typed there is lost when they land somewhere else after OAuth.
+    const redirect = `${window.location.origin}${window.location.pathname}${window.location.search}`;
     await supabase.auth.linkIdentity({
       provider: "github",
       options: {
         scopes: "repo",
-        redirectTo: `${window.location.origin}/dashboard/study`,
+        redirectTo: redirect,
       },
     });
   }, [supabase]);
