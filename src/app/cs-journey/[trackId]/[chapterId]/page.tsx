@@ -70,7 +70,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
 
   const [idx, setIdx]     = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [tab, setTab]     = useState<"cards" | "notes" | "practice">("cards");
+  const [tab, setTab]     = useState<"cards" | "notes" | "practice" | "github">("cards");
   const [entering, setEntering] = useState(true);
 
   // Add card form
@@ -231,10 +231,31 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
     finally { setPushing(false); }
   }
 
+  // GitHub tab state
+  const [ghCode, setGhCode]           = useState("# Write your code here\n");
+  const [ghFileName, setGhFileName]   = useState("solution.py");
+  const [ghCommitMsg, setGhCommitMsg] = useState(`Add: ${ch.title}`);
+  const [ghCommitting, setGhCommitting] = useState(false);
+  const [ghCommitUrl, setGhCommitUrl]   = useState<string | null>(null);
+  const [ghError, setGhError]           = useState<string | null>(null);
+
+  async function commitToGithub() {
+    if (!githubConnection?.accessToken) return;
+    setGhCommitting(true); setGhCommitUrl(null); setGhError(null);
+    try {
+      const repo = destRepo ?? await ensureRepo(githubConnection.accessToken, "devquest-submissions");
+      const filePath = `${destPath}/${ghFileName.trim() || "solution.py"}`;
+      const { htmlUrl } = await pushFile(githubConnection.accessToken, repo, filePath, ghCode, ghCommitMsg || `Add: ${ch.title}`);
+      setGhCommitUrl(htmlUrl);
+    } catch (e) { setGhError((e as Error).message); }
+    finally { setGhCommitting(false); }
+  }
+
   const TABS = [
     { key: "cards" as const,    label: `Flashcards (${cards.length})` },
     { key: "notes" as const,    label: "All Notes" },
     { key: "practice" as const, label: "Practice" },
+    { key: "github" as const,   label: "GitHub" },
   ];
 
   return (
@@ -471,6 +492,82 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   </p>
                 )}
               </div>
+            )}
+          </div>
+        )}
+        {/* ── GitHub ── */}
+        {tab === "github" && (
+          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {!githubConnection ? (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "rgba(245,158,11,0.35)" }}>
+                Connect GitHub in Settings to commit your code directly to a repo.
+              </p>
+            ) : (
+              <>
+                {/* Repo + folder picker */}
+                <div>
+                  <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(245,158,11,0.45)", margin: "0 0 6px" }}>
+                    Committing to: <span style={{ fontFamily: MONO, color: ch.accent }}>{(destRepo ?? githubConnection.repoFullName ?? "…")}/{destPath}/</span>
+                  </p>
+                  <RepoFolderPicker
+                    token={githubConnection.accessToken}
+                    defaultRepo={destRepo ?? githubConnection.repoFullName}
+                    defaultPath={destPath}
+                    accentColor={ch.accent}
+                    onChange={(repo, path) => { setDestRepo(repo); setDestPath(path); }}
+                  />
+                </div>
+
+                {/* File name + commit message */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontFamily: SERIF, fontSize: "0.72rem", color: "rgba(245,158,11,0.5)", display: "block", marginBottom: 4 }}>File name</label>
+                    <input
+                      value={ghFileName}
+                      onChange={(e) => setGhFileName(e.target.value)}
+                      placeholder="solution.py"
+                      style={{ width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(245,158,11,0.18)", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ flex: 2 }}>
+                    <label style={{ fontFamily: SERIF, fontSize: "0.72rem", color: "rgba(245,158,11,0.5)", display: "block", marginBottom: 4 }}>Commit message</label>
+                    <input
+                      value={ghCommitMsg}
+                      onChange={(e) => setGhCommitMsg(e.target.value)}
+                      placeholder={`Add: ${ch.title}`}
+                      style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(245,158,11,0.18)", outline: "none" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Code editor */}
+                <textarea
+                  value={ghCode}
+                  onChange={(e) => setGhCode(e.target.value)}
+                  rows={16}
+                  spellCheck={false}
+                  style={{ fontFamily: MONO, fontSize: "0.85rem", background: "#080504", color: "#fde68a", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(245,158,11,0.18)", resize: "vertical", outline: "none", lineHeight: 1.6 }}
+                />
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button
+                    onClick={commitToGithub}
+                    disabled={ghCommitting || !ghCode.trim()}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: (!ghCommitting && ghCode.trim()) ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "10px 24px", cursor: (!ghCommitting && ghCode.trim()) ? "pointer" : "default", transition: "background 0.15s" }}
+                  >
+                    {ghCommitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5" />}
+                    {ghCommitting ? "Committing…" : "Commit to GitHub"}
+                  </button>
+                  {ghCommitUrl && (
+                    <a href={ghCommitUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent }}>
+                      ✓ View on GitHub →
+                    </a>
+                  )}
+                  {ghError && (
+                    <p style={{ fontFamily: MONO, fontSize: "0.75rem", color: "rgba(220,38,38,0.7)", margin: 0 }}>{ghError}</p>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
