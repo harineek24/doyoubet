@@ -58,7 +58,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   prevId?: string;
   nextId?: string;
 }) {
-  const { user } = useAuth();
+  const { user, connectGithub } = useAuth();
   const router   = useRouter();
 
   // Merge AI-generated flashcards with any user-saved overrides from localStorage
@@ -499,9 +499,17 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
         {tab === "github" && (
           <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
             {!githubConnection ? (
-              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "rgba(245,158,11,0.35)" }}>
-                Connect GitHub in Settings to commit your code directly to a repo.
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", paddingTop: "2rem" }}>
+                <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.9rem", color: "rgba(245,158,11,0.4)", margin: 0, textAlign: "center" }}>
+                  Connect your GitHub account to commit code directly from here.
+                </p>
+                <button
+                  onClick={connectGithub}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.9rem", color: "#fffdf8", background: "linear-gradient(135deg, #f59e0b, #d97706)", border: "none", borderRadius: 50, padding: "11px 28px", cursor: "pointer", boxShadow: "0 6px 20px rgba(245,158,11,0.35)" }}
+                >
+                  <GitBranch className="h-4 w-4" /> Connect GitHub
+                </button>
+              </div>
             ) : (
               <>
                 {/* Repo + folder picker */}
