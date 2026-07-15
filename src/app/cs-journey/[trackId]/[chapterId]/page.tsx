@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ExternalLink, GitBranch, Plus, Trash2 } from "lucide-react";
+import { Loader2, ExternalLink, GitBranch, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack, getChapterFlashcards, saveChapterFlashcards } from "@/lib/repo";
 import { pushFile, ensureRepo } from "@/lib/github";
@@ -81,6 +81,12 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   // Delete card confirmation
   const [deleteCard, setDeleteCard]   = useState<Flashcard | null>(null);
   const [deleteInput, setDeleteInput] = useState("");
+
+  // Edit card — two-step: confirm → form
+  const [editConfirmCard, setEditConfirmCard] = useState<Flashcard | null>(null);
+  const [editCard, setEditCard]               = useState<Flashcard | null>(null);
+  const [editQ, setEditQ]                     = useState("");
+  const [editA, setEditA]                     = useState("");
 
   // Practice
   const [problems, setProblems]               = useState<CFProblem[]>([]);
@@ -182,6 +188,27 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
     setIdx((i) => Math.min(i, Math.max(0, updated.length - 1)));
     setFlipped(false);
     setDeleteCard(null); setDeleteInput("");
+  }
+
+  function openEditConfirm() {
+    if (!card) return;
+    setEditConfirmCard(card);
+  }
+
+  function proceedToEdit() {
+    if (!editConfirmCard) return;
+    setEditQ(editConfirmCard.question);
+    setEditA(editConfirmCard.answer);
+    setEditCard(editConfirmCard);
+    setEditConfirmCard(null);
+  }
+
+  function saveEdit() {
+    if (!editCard || !editQ.trim() || !editA.trim()) return;
+    const updated = cards.map((c) => c.id === editCard.id ? { ...c, question: editQ.trim(), answer: editA.trim() } : c);
+    persistCards(updated);
+    setFlipped(false);
+    setEditCard(null); setEditQ(""); setEditA("");
   }
 
   async function runCode() {
@@ -369,13 +396,21 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   <button onClick={next} disabled={idx === cards.length - 1} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.82rem", color: ch.accent, background: "none", border: `1px solid ${ch.accent}44`, borderRadius: 20, padding: "6px 18px", cursor: idx === cards.length - 1 ? "default" : "pointer", opacity: idx === cards.length - 1 ? 0.3 : 1 }}>Next →</button>
                 </div>
 
-                {/* Delete current card */}
-                <button
-                  onClick={() => { setDeleteCard(card ?? null); setDeleteInput(""); }}
-                  style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(220,38,38,0.45)", background: "none", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}
-                >
-                  <Trash2 size={11} /> Delete this card
-                </button>
+                {/* Edit / Delete current card */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={openEditConfirm}
+                    style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(245,158,11,0.55)", background: "none", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}
+                  >
+                    <Pencil size={11} /> Edit
+                  </button>
+                  <button
+                    onClick={() => { setDeleteCard(card ?? null); setDeleteInput(""); }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: SERIF, fontStyle: "italic", fontSize: "0.72rem", color: "rgba(220,38,38,0.45)", background: "none", border: "1px solid rgba(220,38,38,0.18)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}
+                  >
+                    <Trash2 size={11} /> Delete
+                  </button>
+                </div>
               </>
             )}
 
@@ -635,6 +670,52 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => { setDeleteCard(null); setDeleteInput(""); }} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
               <button onClick={confirmDeleteCard} disabled={deleteInput !== "delete"} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: deleteInput === "delete" ? "linear-gradient(135deg, #dc2626, #b91c1c)" : "rgba(220,38,38,0.25)", border: "none", borderRadius: 50, padding: "8px 20px", cursor: deleteInput === "delete" ? "pointer" : "default", transition: "background 0.15s" }}>Delete</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Edit flashcard — confirm step ── */}
+      {editConfirmCard && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.78)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 420, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 0.5rem" }}>Edit this card?</h2>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.85rem", color: "#5c3d2e", lineHeight: 1.6, margin: "0 0 1.4rem" }}>
+              &ldquo;{editConfirmCard.question.slice(0, 90)}{editConfirmCard.question.length > 90 ? "…" : ""}&rdquo;
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditConfirmCard(null)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={proceedToEdit} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: `linear-gradient(135deg, ${ch.accent}, #d97706)`, border: "none", borderRadius: 50, padding: "8px 22px", cursor: "pointer" }}>Yes, edit</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Edit flashcard — form ── */}
+      {editCard && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.78)", backdropFilter: "blur(4px)" }}>
+          <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
+            style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 460, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.5)" }}>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 1.2rem" }}>Edit flashcard</h2>
+            <label style={{ fontFamily: SERIF, fontSize: "0.78rem", color: "#5c3d2e", display: "block", marginBottom: "0.3rem" }}>Question</label>
+            <textarea
+              autoFocus
+              value={editQ}
+              onChange={(e) => setEditQ(e.target.value)}
+              rows={2}
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.92rem", padding: "0.55rem 0.85rem", borderRadius: 10, border: `1.5px solid ${ch.accent}44`, background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical", marginBottom: "0.9rem" }}
+            />
+            <label style={{ fontFamily: SERIF, fontSize: "0.78rem", color: "#5c3d2e", display: "block", marginBottom: "0.3rem" }}>Answer</label>
+            <textarea
+              value={editA}
+              onChange={(e) => setEditA(e.target.value)}
+              rows={4}
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.92rem", padding: "0.55rem 0.85rem", borderRadius: 10, border: `1.5px solid ${ch.accent}44`, background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical", marginBottom: "1.2rem" }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setEditCard(null); setEditQ(""); setEditA(""); }} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={saveEdit} disabled={!editQ.trim() || !editA.trim()} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: editQ.trim() && editA.trim() ? `linear-gradient(135deg, ${ch.accent}, #d97706)` : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: editQ.trim() && editA.trim() ? "pointer" : "default", transition: "background 0.15s" }}>Save changes</button>
             </div>
           </motion.div>
         </div>
