@@ -109,11 +109,15 @@ export interface RunResult {
 // A Track is a self-contained mini-curriculum within the CS domain
 // (e.g. "Python for AI"). Distinct from `Subject` above, which is the
 // broad onboarding-level domain choice.
+export type CardType = "key-concept" | "how-it-works" | "example" | "why-it-matters" | "qa";
+
 export interface Flashcard {
   id: string;
   question: string;
   answer: string;
   code?: string;
+  cardType?: CardType;
+  exampleIndex?: number; // 1-based, for example cards only
 }
 
 export interface TrackChapter {

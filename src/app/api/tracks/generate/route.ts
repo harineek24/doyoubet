@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { llmChat } from "@/lib/ollama/client";
 import { chapter } from "@/lib/store/tracks";
-import type { TrackChapter } from "@/types/schema";
+import type { Flashcard, TrackChapter } from "@/types/schema";
 
-// Stage-1 generation: chapters only (title/sub/desc/tags).
-// Flashcards are generated lazily per-chapter via /api/tracks/flashcards.
-// Keeping output small (~80-150 tokens) makes this reliable even on free-tier Groq.
-interface RawChapter {
-  title: string;
-  sub: string;
-  desc: string;
-  tags: string[];
+// Derives a short chapter title from a Socratic question.
+// e.g. "How does in-order traversal work?" → "In-order Traversal"
+function titleFromQuestion(q: string): string {
+  return q
+    .replace(/^(what is|what are|how does|how do|why is|why are|when (do|should|is)|what('s| is) the difference between)\s+/i, "")
+    .replace(/\?$/, "")
+    .trim()
+    .split(" ")
+    .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ")
+    .slice(0, 40);
 }
 
-const SYSTEM_PROMPT = `You turn a learner's notes into a structured mini-course outline.
-Respond with ONLY a valid JSON array — start with [ end with ] — no prose, no code fences.
-Produce 4 to 6 chapter objects. Each object has exactly:
-"title" (≤5 words), "sub" (≤4 words), "desc" (one sentence), "tags" (2-3 strings).
-Output ONLY the JSON array.`;
+function uid() { return Math.random().toString(36).slice(2, 10); }
 
-function parseJson(text: string): RawChapter[] | null {
+function parseJson<T>(text: string): T | null {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  try {
-    const d = JSON.parse(cleaned);
-    if (Array.isArray(d)) return d;
-  } catch { /* fall through */ }
+  try { const d = JSON.parse(cleaned); return d; } catch { /* */ }
   const start = cleaned.indexOf("[");
   if (start === -1) return null;
   let depth = 0, inStr = false, esc = false;
@@ -37,35 +33,90 @@ function parseJson(text: string): RawChapter[] | null {
     if (c === "[") depth++;
     else if (c === "]") {
       if (--depth === 0) {
-        try { const p = JSON.parse(cleaned.slice(start, i + 1)); if (Array.isArray(p)) return p; } catch { break; }
+        try { return JSON.parse(cleaned.slice(start, i + 1)); } catch { break; }
       }
     }
   }
   return null;
 }
 
+const CARDS_SYSTEM = `You generate a structured set of learning cards for one Socratic question about a programming/CS subject.
+
+OUTPUT FORMAT
+Respond with ONLY a valid JSON array — first character [ last character ] — no prose, no markdown, no code fences.
+Produce EXACTLY 6 card objects in this order:
+
+1. { "cardType": "key-concept", "question": "Key Concept", "answer": "..." }
+   One clear sentence defining the concept. No code.
+
+2. { "cardType": "how-it-works", "question": "How It Works", "answer": "..." }
+   2-3 sentences explaining the mechanism or process. No code.
+
+3. { "cardType": "example", "exampleIndex": 1, "question": "Example 1", "answer": "...", "code": "..." }
+   One sentence explaining what the code demonstrates. Code: runnable Python snippet ≤10 lines.
+
+4. { "cardType": "example", "exampleIndex": 2, "question": "Example 2", "answer": "...", "code": "..." }
+   A different angle or variation from Example 1. Runnable Python ≤10 lines.
+
+5. { "cardType": "example", "exampleIndex": 3, "question": "Example 3", "answer": "...", "code": "..." }
+   An edge case, gotcha, or real-world usage. Runnable Python ≤10 lines.
+
+6. { "cardType": "why-it-matters", "question": "Why It Matters", "answer": "..." }
+   2-3 sentences on real-world relevance, when to use it, common interview context. No code.
+
+Rules:
+- answer is always plain prose — no bullet lists, no markdown headers inside the string
+- code must be valid Python, properly escaped for JSON (use \\n for newlines, \\" for quotes)
+- Output ONLY the JSON array`;
+
+async function generateCardsForQuestion(
+  subject: string,
+  question: string
+): Promise<Flashcard[]> {
+  const prompt = `Subject: ${subject}\nQuestion: ${question}`;
+  const content = await llmChat(prompt, CARDS_SYSTEM);
+  const raw = parseJson<{ cardType: string; question: string; answer: string; code?: string; exampleIndex?: number }[]>(content);
+  if (!raw || !Array.isArray(raw)) return [];
+  return raw.map((c) => ({
+    id: uid(),
+    question: c.question ?? "",
+    answer: c.answer ?? "",
+    ...(c.code ? { code: c.code } : {}),
+    ...(c.cardType ? { cardType: c.cardType as Flashcard["cardType"] } : {}),
+    ...(c.exampleIndex ? { exampleIndex: c.exampleIndex } : {}),
+  }));
+}
+
 export async function POST(request: NextRequest) {
-  const { title, notes } = await request.json();
-  if (!title?.trim() || !notes?.trim())
-    return NextResponse.json({ error: "Title and notes are required." }, { status: 400 });
+  const { title, questions } = await request.json();
 
-  let content: string;
-  try {
-    content = await llmChat(`Subject: ${title}\n\nNotes:\n${notes}`, SYSTEM_PROMPT);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
-
-  const raw = parseJson(content);
-  if (!raw || raw.length === 0)
-    return NextResponse.json({ error: `Could not parse outline. Got: "${content.slice(0, 200)}"` }, { status: 502 });
+  if (!title?.trim())
+    return NextResponse.json({ error: "title is required." }, { status: 400 });
+  if (!Array.isArray(questions) || questions.length === 0)
+    return NextResponse.json({ error: "questions array is required." }, { status: 400 });
 
   const trackId = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-  const chapters: TrackChapter[] = raw.map((c, i) =>
-    chapter(trackId, i + 1, c.title ?? `Chapter ${i + 1}`, c.sub ?? "", c.desc ?? "", Array.isArray(c.tags) ? c.tags : [], "")
-  );
+  const chapters: TrackChapter[] = [];
+  const errors: string[] = [];
 
-  return NextResponse.json({ trackId, chapters });
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i] as string;
+    const chTitle = titleFromQuestion(q);
+
+    let flashcards: Flashcard[] = [];
+    try {
+      flashcards = await generateCardsForQuestion(title, q);
+    } catch (e) {
+      errors.push(`Q${i + 1}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    const ch = chapter(trackId, i + 1, chTitle, q, `Explore: ${q}`, [], "");
+    chapters.push({ ...ch, flashcards });
+  }
+
+  if (chapters.length === 0)
+    return NextResponse.json({ error: errors.join("; ") || "Generation failed." }, { status: 502 });
+
+  return NextResponse.json({ trackId, chapters, errors: errors.length ? errors : undefined });
 }

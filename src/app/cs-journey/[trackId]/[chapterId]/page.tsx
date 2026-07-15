@@ -370,13 +370,34 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                   >
                     {/* Front */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", borderRadius: 18, background: `linear-gradient(145deg, ${ch.g1}, ${ch.g2})`, border: `1px solid ${ch.accent}33`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", textAlign: "center", minHeight: 220 }}>
-                      <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 1rem" }}>
+                      <p style={{ fontFamily: SERIF, fontSize: "0.62rem", letterSpacing: "0.22em", textTransform: "uppercase", color: ch.accent, opacity: 0.7, margin: "0 0 0.6rem" }}>
                         {idx + 1} of {cards.length} · tap to reveal
                       </p>
+                      {card?.cardType && (
+                        <span style={{
+                          fontFamily: MONO, fontSize: "0.58rem", letterSpacing: "0.1em",
+                          textTransform: "uppercase", padding: "3px 10px", borderRadius: 20,
+                          background: `${ch.accent}18`, color: ch.accent,
+                          border: `1px solid ${ch.accent}33`, marginBottom: "0.9rem",
+                        }}>
+                          {card.cardType === "example" ? `Example ${card.exampleIndex ?? ""}` : card.cardType.replace(/-/g, " ")}
+                        </span>
+                      )}
                       {card && renderQuestion(card.question)}
                     </div>
                     {/* Back */}
                     <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 18, background: "#fffdf8", border: `1px solid ${ch.accent}55`, padding: "1.75rem 2rem", minHeight: 220, overflowY: "auto" }}>
+                      {card?.cardType && (
+                        <span style={{
+                          display: "inline-block", fontFamily: MONO, fontSize: "0.58rem",
+                          letterSpacing: "0.1em", textTransform: "uppercase",
+                          padding: "3px 10px", borderRadius: 20,
+                          background: `${ch.accent}12`, color: ch.accent,
+                          border: `1px solid ${ch.accent}33`, marginBottom: "0.75rem",
+                        }}>
+                          {card.cardType === "example" ? `Example ${card.exampleIndex ?? ""}` : card.cardType.replace(/-/g, " ")}
+                        </span>
+                      )}
                       <div style={{ marginBottom: "0.55rem", color: ch.accent, fontWeight: 700 }}>
                         {card && renderQuestion(card.question)}
                       </div>
