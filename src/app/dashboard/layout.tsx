@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Hammer, Sparkles, Users } from "lucide-react";
+import { BookOpen, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -12,9 +12,7 @@ import { DefconTracker } from "@/components/layout/DefconTracker";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 
 const NAV = [
-  { type: "study", label: "Study", icon: BookOpen },
-  { type: "build", label: "Build", icon: Hammer },
-  { type: "network", label: "Network", icon: Users },
+  { type: "study", label: "Wheel", icon: BookOpen },
 ] as const;
 
 export default function DashboardLayout({
@@ -55,10 +53,10 @@ function Header() {
   return (
     <header className="glass sticky top-0 z-40 flex items-center justify-between gap-4 px-4 py-3 sm:px-8">
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+        <Link href="/hub" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground/70 hover:text-foreground transition">
           <Sparkles className="h-4 w-4 text-emerald" />
-          DevQuest
-        </div>
+          ← Hub
+        </Link>
         <nav className="flex items-center gap-1">
           {NAV.map(({ type, label, icon: Icon }) => {
             const active = pathname.startsWith(`/dashboard/${type}`);

@@ -31,7 +31,7 @@ export async function ensureRepo(token: string, repoName: string): Promise<strin
     body: JSON.stringify({
       name: repoName,
       private: true,
-      description: "DevQuest submissions",
+      description: "Betonyou submissions",
       auto_init: true,
     }),
   });

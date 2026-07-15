@@ -1,189 +1,190 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Compass, Dice5, Code2 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPreferences, getTenants, savePreferences } from "@/lib/repo";
-import type { Domain, LearningStyle, Subject } from "@/types/schema";
-import { cn } from "@/lib/utils";
+import { getAllTracks, getPreferences, savePreferences, getTenants } from "@/lib/repo";
+import type { Track } from "@/types/schema";
 
-const SUBJECTS: { value: Subject; label: string }[] = [
-  { value: "computer_science", label: "Computer Science" },
-];
+const SERIF = 'var(--font-playfair, Georgia, "Book Antiqua", Palatino, serif)';
+const MONO  = "var(--font-geist-mono, 'Courier New', monospace)";
 
 function OnboardingInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const joinToken = searchParams.get("join");
-  const [domain, setDomain] = useState<Domain>("generic");
-  const [subject, setSubject] = useState<Subject>(SUBJECTS[0].value);
-  const [learningStyle, setLearningStyle] = useState<LearningStyle>("spontaneous");
+
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    const existing = getPreferences(user.id);
-    if (existing) {
-      setDomain(existing.domain);
-      if (existing.subject) setSubject(existing.subject);
-      setLearningStyle(existing.learningStyle);
-    }
+    if (!user) router.replace("/login");
   }, [loading, user, router]);
+
+  const tracks: Track[] = useMemo(() => (user ? getAllTracks(user.id) : []), [user]);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return tracks.filter((t) =>
+      t.title.toLowerCase().includes(q) || t.tagline?.toLowerCase().includes(q)
+    );
+  }, [query, tracks]);
+
+  function pick(t: Track) {
+    if (!user) return;
+    // Save minimal prefs so /dashboard/study still works for the wheel
+    if (!getPreferences(user.id)) {
+      savePreferences({ userId: user.id, domain: "cs_sde", subject: "computer_science", learningStyle: "structured", activeTenantId: null, updatedAt: new Date().toISOString() });
+      getTenants(user.id);
+    }
+    router.replace(`/cs-intro?trackId=${t.id}`);
+  }
+
+  function createUniverse() {
+    if (!user) return;
+    if (!getPreferences(user.id)) {
+      savePreferences({ userId: user.id, domain: "cs_sde", subject: "computer_science", learningStyle: "structured", activeTenantId: null, updatedAt: new Date().toISOString() });
+      getTenants(user.id);
+    }
+    router.replace("/cs-journey/new");
+  }
 
   if (!user) return null;
 
-  function handleDomainChange(next: Domain) {
-    setDomain(next);
-    if (next === "generic") setLearningStyle("spontaneous");
-  }
-
-  function handleContinue() {
-    savePreferences({
-      userId: user!.id,
-      domain,
-      subject: domain === "cs_sde" ? subject : null,
-      learningStyle,
-      activeTenantId: null,
-      updatedAt: new Date().toISOString(),
-    });
-    getTenants(user!.id);
-    if (joinToken) { router.replace(`/cs-journey/join/${joinToken}`); return; }
-    router.replace("/cs-intro");
-  }
-
-  const structuredDisabled = domain === "generic";
+  const showDropdown = focused && query.trim().length > 0;
 
   return (
-    <main className="flex min-h-screen flex-1 items-center justify-center px-6 py-12">
+    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse 100% 80% at 50% 0%, #fef3c7 0%, #fdf8f0 60%, #f5e6d0 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-2xl"
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        style={{ width: "100%", maxWidth: 540, display: "flex", flexDirection: "column", alignItems: "center", gap: "2.5rem" }}
       >
-        <h1 className="text-center text-2xl font-semibold tracking-tight">
-          How do you want to learn?
-        </h1>
-        <p className="mt-2 text-center text-sm text-foreground/60">
-          You can change this anytime from settings.
-        </p>
+        {/* Header */}
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontFamily: MONO, fontSize: "0.68rem", letterSpacing: "0.28em", textTransform: "uppercase", color: "rgba(146,64,14,0.5)", margin: "0 0 0.5rem" }}>
+            betonyou
+          </p>
+          <h1 style={{ fontFamily: SERIF, fontSize: "clamp(2rem, 5vw, 3rem)", fontWeight: 700, fontStyle: "italic", color: "#1c1008", margin: 0, lineHeight: 1.1 }}>
+            What do you want to learn?
+          </h1>
+        </div>
 
-        <section className="mt-8">
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-foreground/40">
-            Subject domain
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <OptionCard
-              active={domain === "generic"}
-              onClick={() => handleDomainChange("generic")}
-              title="Learn your own subject"
-              description="Any subject — language, fitness, music, anything. Build your own path."
-            />
-            <OptionCard
-              active={domain === "cs_sde"}
-              onClick={() => handleDomainChange("cs_sde")}
-              icon={<Code2 className="h-4 w-4" />}
-              title="Learn a subject available here"
-              description="Pick from subjects with a guided curriculum already built."
-            />
-          </div>
+        {/* Search */}
+        <div style={{ width: "100%", position: "relative" }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            placeholder="e.g. Python, Data Structures, AI…"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              fontFamily: SERIF, fontStyle: "italic", fontSize: "1.1rem",
+              padding: "1rem 1.4rem",
+              borderRadius: 16,
+              border: "2px solid rgba(245,158,11,0.35)",
+              background: "rgba(255,253,248,0.9)",
+              color: "#1c1008",
+              outline: "none",
+              boxShadow: focused ? "0 0 0 3px rgba(245,158,11,0.18), 0 8px 32px rgba(120,70,20,0.10)" : "0 4px 20px rgba(120,70,20,0.08)",
+              transition: "box-shadow 0.2s, border-color 0.2s",
+              borderColor: focused ? "rgba(245,158,11,0.6)" : "rgba(245,158,11,0.35)",
+            }}
+          />
 
-          {domain === "cs_sde" && (
-            <div className="mt-3">
-              <label className="mb-1.5 block text-xs text-foreground/50">Subject</label>
-              <select
-                value={subject}
-                onChange={(e) => setSubject(e.target.value as Subject)}
-                className="glass w-full rounded-xl p-3 text-sm"
+          {/* Dropdown */}
+          <AnimatePresence>
+            {showDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 50,
+                  background: "#fffdf8",
+                  borderRadius: 14,
+                  border: "1.5px solid rgba(245,158,11,0.25)",
+                  boxShadow: "0 12px 40px rgba(120,70,20,0.14)",
+                  overflow: "hidden",
+                  maxHeight: 320,
+                  overflowY: "auto",
+                }}
               >
-                {SUBJECTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </section>
+                {matches.length === 0 ? (
+                  <div style={{ padding: "1rem 1.2rem", fontFamily: SERIF, fontStyle: "italic", fontSize: "0.9rem", color: "rgba(92,61,30,0.5)" }}>
+                    No match — try "create new universe" below
+                  </div>
+                ) : (
+                  matches.map((t) => (
+                    <button
+                      key={t.id}
+                      onMouseDown={() => pick(t)}
+                      style={{
+                        width: "100%", textAlign: "left",
+                        padding: "0.85rem 1.2rem",
+                        background: "none", border: "none",
+                        borderBottom: "1px solid rgba(245,158,11,0.10)",
+                        cursor: "pointer",
+                        display: "flex", flexDirection: "column", gap: 2,
+                        transition: "background 0.12s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(245,158,11,0.07)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {t.source === "ai-generated" && (
+                          <span style={{ fontFamily: MONO, fontSize: "0.55rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#f59e0b", background: "rgba(245,158,11,0.12)", borderRadius: 20, padding: "1px 7px" }}>yours</span>
+                        )}
+                        <span style={{ fontFamily: SERIF, fontWeight: 700, fontSize: "1rem", color: "#1c1008" }}>{t.title}</span>
+                      </div>
+                      {t.tagline && (
+                        <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(92,61,30,0.55)" }}>{t.tagline}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-        <section className="mt-6">
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-foreground/40">
-            Learning style
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <OptionCard
-              active={learningStyle === "spontaneous"}
-              onClick={() => setLearningStyle("spontaneous")}
-              icon={<Dice5 className="h-4 w-4" />}
-              title="Spontaneous"
-              description="Wheel-driven, random, discovery-first."
-            />
-            <OptionCard
-              active={learningStyle === "structured"}
-              disabled={structuredDisabled}
-              onClick={() => setLearningStyle("structured")}
-              icon={<Compass className="h-4 w-4" />}
-              title="Structured"
-              description={
-                structuredDisabled
-                  ? "Pick a subject available here to unlock a guided roadmap."
-                  : "Follow a guided roadmap, step by step."
-              }
-            />
-          </div>
-        </section>
+        {/* Divider */}
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", width: "100%" }}>
+          <div style={{ flex: 1, height: 1, background: "rgba(245,158,11,0.2)" }} />
+          <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(146,64,14,0.4)" }}>or</span>
+          <div style={{ flex: 1, height: 1, background: "rgba(245,158,11,0.2)" }} />
+        </div>
 
-        <button
-          onClick={handleContinue}
-          className="mt-8 w-full rounded-xl bg-emerald px-4 py-3 text-sm font-medium text-void transition hover:opacity-90"
+        {/* Create new universe */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={createUniverse}
+          style={{
+            fontFamily: SERIF, fontStyle: "italic", fontWeight: 700,
+            fontSize: "1rem", color: "#92400e",
+            background: "rgba(245,158,11,0.10)",
+            border: "1.5px solid rgba(245,158,11,0.35)",
+            borderRadius: 50, padding: "12px 32px",
+            cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(245,158,11,0.15)",
+            transition: "background 0.2s",
+          }}
         >
-          Enter DevQuest
-        </button>
+          + Create new universe
+        </motion.button>
       </motion.div>
-    </main>
+    </div>
   );
 }
 
 export default function OnboardingPage() {
   return <Suspense><OnboardingInner /></Suspense>;
-}
-
-function OptionCard({
-  active,
-  disabled,
-  onClick,
-  title,
-  description,
-  icon,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-  title: string;
-  description: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "glass rounded-xl p-4 text-left transition",
-        active && "border-emerald/60 glow-emerald",
-        disabled && "cursor-not-allowed opacity-40"
-      )}
-    >
-      <div className="flex items-center gap-2 text-sm font-medium">
-        {icon}
-        {title}
-      </div>
-      <p className="mt-1 text-xs text-foreground/50">{description}</p>
-    </button>
-  );
 }

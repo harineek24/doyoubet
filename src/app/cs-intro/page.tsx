@@ -1,15 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPreferences } from "@/lib/repo";
-import type { Subject } from "@/types/schema";
-
-const SUBJECT_LABELS: Record<Subject, string> = {
-  computer_science: "Computer Science",
-};
+import { getBuiltinTrack } from "@/lib/store/tracks";
+import { getTrack } from "@/lib/repo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -412,9 +408,11 @@ const SERIF = 'var(--font-playfair), Georgia, "Book Antiqua", Palatino, serif';
 // PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function CSIntroPage() {
+function CSIntroInner() {
   const router = useRouter();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const trackId = searchParams.get("trackId");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<CinematicEngine | null>(null);
   const stopDroneRef = useRef<(() => void) | null>(null);
@@ -422,9 +420,9 @@ export default function CSIntroPage() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const touchStartY = useRef(0);
 
-  const prefs = user ? getPreferences(user.id) : null;
-  const subjectLabel = prefs?.subject ? SUBJECT_LABELS[prefs.subject] : null;
-  const exitTarget = prefs?.learningStyle === "structured" ? "/cs-journey" : "/dashboard/study";
+  const track = trackId ? (getBuiltinTrack(trackId) ?? (user ? getTrack(user.id, trackId) : undefined)) : undefined;
+  const subjectLabel = track?.title ?? null;
+  const exitTarget = trackId ? `/hub?trackId=${trackId}` : "/hub";
 
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [line0, setLine0] = useState(false);
@@ -655,7 +653,7 @@ export default function CSIntroPage() {
                   willChange: "transform, opacity",
                 }}
               >
-                of {subjectLabel}
+                {subjectLabel}
               </motion.div>
             </>
           )}
@@ -729,4 +727,8 @@ export default function CSIntroPage() {
       </AnimatePresence>
     </div>
   );
+}
+
+export default function CSIntroPage() {
+  return <Suspense><CSIntroInner /></Suspense>;
 }

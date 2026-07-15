@@ -72,7 +72,7 @@ export function SearchBar({ tenantId }: { tenantId: string }) {
             {hasInternal && (
               <div className="mb-1">
                 <p className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-foreground/40">
-                  In DevQuest
+                  In Betonyou
                 </p>
                 {internalResults.map((r) => (
                   <div
