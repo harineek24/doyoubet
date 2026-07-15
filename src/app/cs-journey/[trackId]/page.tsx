@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Lenis from "lenis";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTrack, saveTrackMeta } from "@/lib/repo";
 import { JOURNEY } from "@/components/cs-journey/journeyData";
@@ -71,34 +72,49 @@ export default function TrackJourneyPage() {
   const [doorChapter, setDoorChapter] = useState<TrackChapter | null>(null);
 
   // Add chapter modal
-  const [addOpen,   setAddOpen]   = useState(false);
-  const [formTitle, setFormTitle] = useState("");
-  const [formSub,   setFormSub]   = useState("");
-  const [formDesc,  setFormDesc]  = useState("");
-  const [formTags,  setFormTags]  = useState("");
+  const [addOpen,      setAddOpen]      = useState(false);
+  const [formQuestion, setFormQuestion] = useState("");
+  const [addGenerating, setAddGenerating] = useState(false);
+  const [addError,     setAddError]     = useState<string | null>(null);
 
   async function saveNewChapter() {
-    if (!track || !user || !formTitle.trim()) return;
-    const tags = formTags.split(",").map((t) => t.trim()).filter(Boolean);
-    const n = track.chapters.length + 1;
-    const p = PALETTES[track.chapters.length % PALETTES.length];
-    const newCh: TrackChapter = {
-      id: `${trackId}-${Date.now()}`,
-      num: String(n).padStart(2, "0"),
-      title: formTitle.trim(), sub: formSub.trim(), desc: formDesc.trim(), tags,
-      ...p,
-    };
-    const updated: Track = { ...track, chapters: [...track.chapters, newCh] };
-    saveTrackMeta(user.id, updated);
-    setTrack(updated);
-    setAddOpen(false);
-    setFormTitle(""); setFormSub(""); setFormDesc(""); setFormTags("");
-    // Silently re-publish so shared link also gets the new chapter
-    fetch("/api/tracks/share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trackId, title: updated.title, tagline: updated.tagline, chapters: updated.chapters }),
-    }).catch(() => {});
+    if (!track || !user || !formQuestion.trim() || addGenerating) return;
+    setAddGenerating(true);
+    setAddError(null);
+    try {
+      const res  = await fetch("/api/tracks/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: track.title, questions: [formQuestion.trim()] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed.");
+      const generated = data.chapters?.[0];
+      if (!generated) throw new Error("No chapter returned.");
+
+      const n = track.chapters.length + 1;
+      const p = PALETTES[track.chapters.length % PALETTES.length];
+      const newCh: TrackChapter = {
+        ...generated,
+        id:  `${trackId}-${Date.now()}`,
+        num: String(n).padStart(2, "0"),
+        ...p,
+      };
+      const updated: Track = { ...track, chapters: [...track.chapters, newCh] };
+      saveTrackMeta(user.id, updated);
+      setTrack(updated);
+      setAddOpen(false);
+      setFormQuestion("");
+      fetch("/api/tracks/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId, title: updated.title, tagline: updated.tagline, chapters: updated.chapters }),
+      }).catch(() => {});
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : "Generation failed.");
+    } finally {
+      setAddGenerating(false);
+    }
   }
 
   useEffect(() => {
@@ -282,7 +298,7 @@ export default function TrackJourneyPage() {
       {/* Edit button — bottom-left, custom tracks only */}
       {isEditable && (
         <button
-          onClick={() => { setFormTitle(""); setFormSub(""); setFormDesc(""); setFormTags(""); setAddOpen(true); }}
+          onClick={() => { setFormQuestion(""); setAddError(null); setAddOpen(true); }}
           style={{
             position: "fixed", bottom: "2rem", left: "1.5rem", zIndex: 60,
             display: "flex", alignItems: "center", gap: 6,
@@ -311,29 +327,35 @@ export default function TrackJourneyPage() {
         <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(14,10,6,0.60)", backdropFilter: "blur(4px)" }}>
           <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.16 }}
             style={{ background: "#fffdf8", borderRadius: 20, padding: "2rem 2.2rem", maxWidth: 480, width: "92%", boxShadow: "0 24px 80px rgba(14,10,6,0.4)" }}>
-            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 1.2rem" }}>Add a chapter</h2>
+            <h2 style={{ fontFamily: SERIF, fontSize: "1.2rem", fontWeight: 700, color: "#1c1008", margin: "0 0 0.4rem" }}>Add a chapter</h2>
+            <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.8rem", color: "rgba(92,61,46,0.6)", margin: "0 0 1.4rem" }}>
+              What question do you want to answer?
+            </p>
 
-            {[{ label: "Title", val: formTitle, set: setFormTitle },
-              { label: "Subtitle", val: formSub, set: setFormSub },
-              { label: "Description", val: formDesc, set: setFormDesc }].map(({ label, val, set }) => (
-              <div key={label} style={{ marginBottom: "0.85rem" }}>
-                <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>{label}</label>
-                {label === "Description"
-                  ? <textarea value={val} onChange={(e) => set(e.target.value)} rows={2} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", resize: "vertical" }} />
-                  : <input autoFocus={label === "Title"} value={val} onChange={(e) => set(e.target.value)} style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
-                }
-              </div>
-            ))}
+            <input
+              autoFocus
+              value={formQuestion}
+              onChange={(e) => { setFormQuestion(e.target.value); setAddError(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") saveNewChapter(); }}
+              placeholder="e.g. How does binary search work?"
+              disabled={addGenerating}
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.95rem", padding: "0.6rem 0.9rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none", marginBottom: "1.2rem", opacity: addGenerating ? 0.5 : 1 }}
+            />
 
-            <div style={{ marginBottom: "1.2rem" }}>
-              <label style={{ fontFamily: SERIF, fontSize: "0.76rem", color: "#5c3d2e", display: "block", marginBottom: "0.25rem" }}>Tags (comma-separated)</label>
-              <input value={formTags} onChange={(e) => setFormTags(e.target.value)} placeholder="e.g. arrays, sorting" style={{ width: "100%", boxSizing: "border-box", fontFamily: SERIF, fontSize: "0.9rem", padding: "0.5rem 0.8rem", borderRadius: 10, border: "1.5px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.04)", color: "#1c1008", outline: "none" }} />
-            </div>
+            {addGenerating && (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "rgba(146,64,14,0.65)", margin: "0 0 1rem", display: "flex", alignItems: "center", gap: 6 }}>
+                <Loader2 size={13} className="animate-spin" /> Generating 6 cards for this question…
+              </p>
+            )}
+            {addError && (
+              <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.78rem", color: "#b91c1c", margin: "0 0 1rem" }}>{addError}</p>
+            )}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setAddOpen(false)} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer" }}>Cancel</button>
-              <button onClick={saveNewChapter} disabled={!formTitle.trim()} style={{ fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: formTitle.trim() ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: formTitle.trim() ? "pointer" : "default" }}>
-                Add chapter
+              <button onClick={() => { setAddOpen(false); setFormQuestion(""); setAddError(null); }} disabled={addGenerating} style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "0.88rem", color: "#5c3d2e", background: "none", border: "1px solid rgba(92,61,30,0.2)", borderRadius: 50, padding: "8px 20px", cursor: "pointer", opacity: addGenerating ? 0.5 : 1 }}>Cancel</button>
+              <button onClick={saveNewChapter} disabled={!formQuestion.trim() || addGenerating} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: "0.88rem", color: "#fffdf8", background: formQuestion.trim() && !addGenerating ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 50, padding: "8px 22px", cursor: formQuestion.trim() && !addGenerating ? "pointer" : "default" }}>
+                {addGenerating && <Loader2 size={13} className="animate-spin" />}
+                {addGenerating ? "Generating…" : "Add chapter"}
               </button>
             </div>
           </motion.div>
