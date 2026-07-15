@@ -65,8 +65,8 @@ export default function CSJourneyPickerPage() {
 
   function openGmail() {
     if (!shareUrl) return;
-    const subject = encodeURIComponent(`Join my DevQuest subject: ${shareTarget?.title}`);
-    const body = encodeURIComponent(`Hey! I'm inviting you to study "${shareTarget?.title}" with me on DevQuest.\n\nClick the link below to add it to your library:\n\n${shareUrl}\n\nSee you there!`);
+    const subject = encodeURIComponent(`Join my Betonyou subject: ${shareTarget?.title}`);
+    const body = encodeURIComponent(`Hey! I'm inviting you to study "${shareTarget?.title}" with me on Betonyou.\n\nClick the link below to add it to your library:\n\n${shareUrl}\n\nSee you there!`);
     window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(shareEmail)}&su=${subject}&body=${body}`, "_blank");
   }
 

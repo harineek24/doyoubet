@@ -173,7 +173,7 @@ export default function NewSubjectPage() {
     setSaveProgress("Saving…");
     const newTrack = buildTrack(trackId, title, rawNotes.slice(0, 140), enriched, user.id, "ai-generated", rawNotes);
     saveCustomTrack(user.id, newTrack);
-    router.push(`/cs-journey/${trackId}`);
+    router.push(`/cs-intro?trackId=${trackId}`);
   }
 
   if (!user) return null;

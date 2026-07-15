@@ -27,7 +27,7 @@ function LoginInner() {
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald/10">
           <Sparkles className="h-6 w-6 text-emerald" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">DevQuest</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Betonyou</h1>
         <p className="mt-2 text-sm text-foreground/60">
           Positive reinforcement for engineering practice.
         </p>

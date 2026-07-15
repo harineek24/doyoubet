@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DevQuest",
+  title: "Betonyou",
   description: "A gamified engineering productivity dashboard.",
 };
 

@@ -101,7 +101,7 @@ export function Workbench({
         repoFullName,
         path,
         content,
-        `DevQuest: Study submission ${submission.id}`
+        `Betonyou: Study submission ${submission.id}`
       );
 
       const updated = updateWorkbenchSubmission(tenantId, submission.id, { pushedToGithub: true });
