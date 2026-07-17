@@ -479,7 +479,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                                 )}
                                 {!output.stdout && !output.stderr && (
                                   <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#0e0a06", color: "rgba(253,230,138,0.4)", fontFamily: MONO, fontSize: "0.78rem" }}>
-                                    (no output)
+                                    {output.exitCode !== 0 ? `process exited with code ${output.exitCode}` : "(no output)"}
                                   </pre>
                                 )}
                               </div>

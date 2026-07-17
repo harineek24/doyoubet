@@ -58,9 +58,15 @@ export async function POST(request: NextRequest) {
     const run = data.run ?? {};
     const compile = data.compile ?? {};
 
+    const stdout = run.stdout ?? "";
+    const stderr = [compile.stderr, run.stderr].filter(Boolean).join("\n");
+    // Piston sometimes puts everything (including tracebacks) in run.output
+    // when stdout/stderr aren't split — fall back to it so errors aren't lost
+    const output = (!stdout && !stderr) ? (run.output ?? "") : "";
+
     return NextResponse.json({
-      stdout: run.stdout ?? "",
-      stderr: [compile.stderr, run.stderr].filter(Boolean).join("\n"),
+      stdout: stdout || output,
+      stderr,
       exitCode: run.code ?? 0,
     });
   } catch {
