@@ -88,6 +88,10 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
   const [editQ, setEditQ]                     = useState("");
   const [editA, setEditA]                     = useState("");
 
+  // Code runner — per-card output keyed by card id
+  const [runningCardId, setRunningCardId]     = useState<string | null>(null);
+  const [cardOutputs, setCardOutputs]         = useState<Record<string, { stdout: string; stderr: string; exitCode: number }>>({});
+
   // Practice
   const [problems, setProblems]               = useState<CFProblem[]>([]);
   const [loadingProblems, setLoadingProblems] = useState(false);
@@ -165,6 +169,35 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
     }
 
     return <p style={{ ...style, margin: 0 }}>{text}</p>;
+  }
+
+  async function runCardCode(c: Flashcard) {
+    if (!c.code || runningCardId) return;
+    setRunningCardId(c.id);
+    setCardOutputs((prev) => {
+      const next = { ...prev };
+      delete next[c.id];
+      return next;
+    });
+    try {
+      const res  = await fetch("/api/code/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: "python", content: c.code }),
+      });
+      const data = await res.json();
+      setCardOutputs((prev) => ({
+        ...prev,
+        [c.id]: { stdout: data.stdout ?? "", stderr: data.stderr ?? "", exitCode: data.exitCode ?? 0 },
+      }));
+    } catch {
+      setCardOutputs((prev) => ({
+        ...prev,
+        [c.id]: { stdout: "", stderr: "Run failed — check your connection.", exitCode: 1 },
+      }));
+    } finally {
+      setRunningCardId(null);
+    }
   }
 
   function persistCards(updated: Flashcard[]) {
@@ -402,11 +435,58 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                         {card && renderQuestion(card.question)}
                       </div>
                       {card && renderAnswer(card.answer)}
-                      {card?.code && (
-                        <pre style={{ marginTop: "0.9rem", background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap" }}>
-                          {card.code}
-                        </pre>
-                      )}
+                      {card?.code && (() => {
+                        const output = card ? cardOutputs[card.id] : undefined;
+                        const isRunning = runningCardId === card?.id;
+                        return (
+                          <div style={{ marginTop: "0.9rem" }} onClick={(e) => e.stopPropagation()}>
+                            {/* Code block + run button */}
+                            <div style={{ position: "relative" }}>
+                              <pre style={{ background: "#1c1008", color: "#fde68a", fontFamily: MONO, fontSize: "0.82rem", lineHeight: 1.6, padding: "0.75rem 1rem", borderRadius: 10, overflowX: "auto", whiteSpace: "pre-wrap", margin: 0, paddingRight: "3.5rem" }}>
+                                {card.code}
+                              </pre>
+                              <button
+                                onClick={() => card && runCardCode(card)}
+                                disabled={isRunning}
+                                style={{
+                                  position: "absolute", top: 8, right: 8,
+                                  fontFamily: MONO, fontSize: "0.65rem", letterSpacing: "0.06em",
+                                  color: isRunning ? "rgba(253,230,138,0.4)" : "#fde68a",
+                                  background: "rgba(255,255,255,0.07)",
+                                  border: "1px solid rgba(253,230,138,0.25)",
+                                  borderRadius: 6, padding: "3px 9px", cursor: isRunning ? "default" : "pointer",
+                                  display: "flex", alignItems: "center", gap: 4,
+                                }}
+                              >
+                                {isRunning
+                                  ? <><Loader2 size={10} className="animate-spin" /> running</>
+                                  : "▶ run"
+                                }
+                              </button>
+                            </div>
+                            {/* Output */}
+                            {output && (
+                              <div style={{ marginTop: 6, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(245,158,11,0.15)" }}>
+                                {output.stdout && (
+                                  <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#0e0a06", color: "rgba(253,230,138,0.85)", fontFamily: MONO, fontSize: "0.78rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                                    {output.stdout}
+                                  </pre>
+                                )}
+                                {output.stderr && (
+                                  <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#1a0505", color: "#fca5a5", fontFamily: MONO, fontSize: "0.78rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                                    {output.stderr}
+                                  </pre>
+                                )}
+                                {!output.stdout && !output.stderr && (
+                                  <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#0e0a06", color: "rgba(253,230,138,0.4)", fontFamily: MONO, fontSize: "0.78rem" }}>
+                                    (no output)
+                                  </pre>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </motion.div>
                 </div>
