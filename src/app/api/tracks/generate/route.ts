@@ -53,20 +53,27 @@ Produce EXACTLY 6 card objects in this order:
    2-3 sentences explaining the mechanism or process. No code.
 
 3. { "cardType": "example", "exampleIndex": 1, "question": "Example 1", "answer": "...", "code": "..." }
-   One sentence explaining what the code demonstrates. Code: runnable Python snippet ≤10 lines.
+   One sentence explaining what the code demonstrates. See code rules below.
 
 4. { "cardType": "example", "exampleIndex": 2, "question": "Example 2", "answer": "...", "code": "..." }
-   A different angle or variation from Example 1. Runnable Python ≤10 lines.
+   A different angle or variation from Example 1. See code rules below.
 
 5. { "cardType": "example", "exampleIndex": 3, "question": "Example 3", "answer": "...", "code": "..." }
-   An edge case, gotcha, or real-world usage. Runnable Python ≤10 lines.
+   An edge case, gotcha, or real-world usage. See code rules below.
 
 6. { "cardType": "why-it-matters", "question": "Why It Matters", "answer": "..." }
    2-3 sentences on real-world relevance, when to use it, common interview context. No code.
 
+CODE RULES (all three example cards must follow every rule):
+- Self-contained: no file I/O, no network calls, no user input(), no external packages
+- Only Python stdlib imports are allowed (e.g. collections, itertools, math, heapq, re, functools)
+- Must produce visible output — every snippet must have at least one print() call
+- ≤10 lines, no class definitions unless the question is specifically about OOP
+- Must actually run without errors — test mentally before writing
+- Properly escaped for JSON: use \\n for newlines, \\" for quotes inside strings
+
 Rules:
 - answer is always plain prose — no bullet lists, no markdown headers inside the string
-- code must be valid Python, properly escaped for JSON (use \\n for newlines, \\" for quotes)
 - Output ONLY the JSON array`;
 
 async function generateCardsForQuestion(
