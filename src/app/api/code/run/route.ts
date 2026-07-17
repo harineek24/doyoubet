@@ -60,14 +60,15 @@ export async function POST(request: NextRequest) {
 
     const stdout = run.stdout ?? "";
     const stderr = [compile.stderr, run.stderr].filter(Boolean).join("\n");
-    // Piston sometimes puts everything (including tracebacks) in run.output
-    // when stdout/stderr aren't split — fall back to it so errors aren't lost
-    const output = (!stdout && !stderr) ? (run.output ?? "") : "";
+    // Piston sometimes merges stdout+stderr into run.output — use it as
+    // the final fallback so tracebacks are never silently swallowed
+    const combined = run.output ?? "";
+    const exitCode = run.code ?? (compile.code ?? 0);
 
     return NextResponse.json({
-      stdout: stdout || output,
-      stderr,
-      exitCode: run.code ?? 0,
+      stdout: stdout || (!stderr ? combined : ""),
+      stderr: stderr || (combined && combined !== stdout ? combined : ""),
+      exitCode,
     });
   } catch {
     return NextResponse.json({ error: "Execution failed" }, { status: 500 });

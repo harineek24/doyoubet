@@ -466,7 +466,7 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                             </div>
                             {/* Output */}
                             {output && (
-                              <div style={{ marginTop: 6, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(245,158,11,0.15)" }}>
+                              <div style={{ marginTop: 6, borderRadius: 8, overflow: "hidden", border: `1px solid ${output.exitCode !== 0 ? "rgba(239,68,68,0.2)" : "rgba(245,158,11,0.15)"}` }}>
                                 {output.stdout && (
                                   <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#0e0a06", color: "rgba(253,230,138,0.85)", fontFamily: MONO, fontSize: "0.78rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                                     {output.stdout}
@@ -479,9 +479,15 @@ function ChapterView({ chapter: ch, trackId, chapterId, chapterIndex, totalChapt
                                 )}
                                 {!output.stdout && !output.stderr && (
                                   <pre style={{ margin: 0, padding: "0.6rem 0.9rem", background: "#0e0a06", color: "rgba(253,230,138,0.4)", fontFamily: MONO, fontSize: "0.78rem" }}>
-                                    {output.exitCode !== 0 ? `process exited with code ${output.exitCode}` : "(no output)"}
+                                    (no output)
                                   </pre>
                                 )}
+                                {/* Always show exit code footer so silent failures are visible */}
+                                <div style={{ padding: "3px 0.9rem", background: output.exitCode !== 0 ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.04)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                                  <span style={{ fontFamily: MONO, fontSize: "0.65rem", color: output.exitCode !== 0 ? "#fca5a5" : "rgba(253,230,138,0.35)" }}>
+                                    exited {output.exitCode !== 0 ? `with error (code ${output.exitCode})` : "successfully (code 0)"}
+                                  </span>
+                                </div>
                               </div>
                             )}
                           </div>
