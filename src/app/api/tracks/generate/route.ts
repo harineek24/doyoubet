@@ -65,11 +65,12 @@ Produce EXACTLY 6 card objects in this order:
    2-3 sentences on real-world relevance, when to use it, common interview context. No code.
 
 CODE RULES (all three example cards must follow every rule):
-- Self-contained: no file I/O, no network calls, no user input(), no external packages
-- Only Python stdlib imports are allowed (e.g. collections, itertools, math, heapq, re, functools)
+- Self-contained: no file I/O, no network calls, no user input()
 - Must produce visible output — every snippet must have at least one print() call
 - ≤10 lines, no class definitions unless the question is specifically about OOP
 - Must actually run without errors — test mentally before writing
+- Prefer stdlib (collections, itertools, math, heapq, re, functools) when it demonstrates the concept equally well
+- If the concept requires a third-party package, only use widely available ones: numpy, pandas, scikit-learn, torch, matplotlib, scipy, requests — no niche or domain-specific packages (e.g. pgvector, sqlalchemy, fastapi)
 - Properly escaped for JSON: use \\n for newlines, \\" for quotes inside strings
 
 Rules:
